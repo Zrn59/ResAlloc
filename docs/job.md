@@ -1,0 +1,42 @@
+# Задача и скрипт
+
+[English](en/job.md) · **Русский**
+
+Код: `src/resalloc/models.py`, `src/resalloc/worker.py`, `src/resalloc/policy.py`.
+
+`Job` описывает скрипт, стартовый провайдер, `failover` и датасеты. Строка в `datasets` значит `route="hub"`. Объект `Dataset` выбирает дорогу.
+
+`Limits` решает, когда просить сохраниться (`soft_buffer`) и когда гасить запуск даже без ответа (`hard_buffer`).
+
+| Поле | Смысл |
+| --- | --- |
+| `runpod_min_balance_usd` | не спускать баланс ниже этого, если API его отдал |
+| `runpod_max_spend_usd` | потолок сессии, если живого баланса нет |
+| `runpod_max_hourly_usd` | не брать GPU дороже |
+| `modal_max_spend_usd` | потолок по `metered_cost`, до вычета кредитов, не «остаток от $30» |
+| `kaggle_min_gpu_hours` | оставить запас часов GPU/TPU |
+| `vast_min_balance_usd` | не спускать баланс Vast ниже этого |
+| `vast_max_spend_usd` | потолок сессии на Vast |
+| `vast_max_hourly_usd` | не брать оффер дороже |
+| `laptop_heartbeat_timeout` | через сколько молчания ноут считается упавшим |
+
+`data_timeout_seconds` лежит на `Job`, не в `Limits`: сколько ждать SSH, чтобы дослать прямой датасет. Потом скрипт сам перестаёт ждать и пишет ненулевой `finished.json`, чтобы GPU не висел без данных.
+
+Ненулевой выход скрипта — `STOP` с причиной `worker_failed`. Обрыв пода, потеря пульса ноутбука и несколько неудачных `probe` подряд по-прежнему переносят задачу, если следующий шаг есть.
+
+В `train.py` один и тот же код на всех провайдерах:
+
+```python
+worker = Worker()
+state = worker.load()
+worker.on_stop(save_weights)   # вызывается до ack
+worker.save({"epoch": epoch})
+signal = worker.pulse()        # continue / checkpoint_and_migrate / stop
+for path in worker.iter_ready("huge"):
+    ...
+worker.wait_data("huge")       # пока не появится COMPLETE
+```
+
+`worker.path("model.pt")` — файл, который уедет вместе с чекпоинтом на хаб.
+
+Решение политики: много запаса — `CONTINUE`; запас внутри мягкого порога — `MIGRATE` или `PARK`, если следующий шаг просит подтверждение; жёсткий порог или обрыв — без ожидания ack. Успешный конец скрипта — `STOP` с причиной `completed`, без переноса.

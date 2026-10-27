@@ -1,0 +1,14 @@
+[Unit]
+Description=resalloc hub
+After=network-online.target
+
+[Service]
+Type=simple
+ExecStart=%h/.local/bin/resalloc hub run
+Environment=RESALLOC_HUB_ROOT=%h/resalloc
+Environment=RESALLOC_TICK_WORKERS=4
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=default.target
