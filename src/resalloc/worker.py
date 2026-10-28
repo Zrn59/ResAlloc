@@ -113,19 +113,25 @@ class Worker:
         seen: set[str] = set()
         while True:
             root = self.dataset_root(dataset)
-            if root.is_dir():
-                for marker in sorted(root.rglob("*.done")):
-                    data = marker.with_name(marker.name[: -len(".done")])
-                    if not data.is_file():
-                        continue
-                    key = data.relative_to(root).as_posix()
-                    if key in seen:
-                        continue
-                    seen.add(key)
-                    yield data
+            yield from self._ready_files(root, seen)
             if (root / "COMPLETE").exists():
+                # The marker can appear in the gap after the scan above.
+                yield from self._ready_files(root, seen)
                 return
             time.sleep(poll)
+
+    def _ready_files(self, root: Path, seen: set[str]):
+        if not root.is_dir():
+            return
+        for marker in sorted(root.rglob("*.done")):
+            data = marker.with_name(marker.name[: -len(".done")])
+            if not data.is_file():
+                continue
+            key = data.relative_to(root).as_posix()
+            if key in seen:
+                continue
+            seen.add(key)
+            yield data
 
     def on_stop(self, callback: Callable[[], None]) -> None:
         self._callbacks.append(callback)
