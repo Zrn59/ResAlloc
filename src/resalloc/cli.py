@@ -19,8 +19,15 @@ from resalloc.setup import format_journal
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(prog="resalloc")
-    sub = parser.add_subparsers(dest="command", required=True)
+    parser = argparse.ArgumentParser(
+        prog="resalloc",
+        epilog="Start here: resalloc up",
+    )
+    sub = parser.add_subparsers(dest="command")
+
+    up = sub.add_parser("up", help="create the local hub and start it. one command")
+    up.add_argument("--hub-root", type=Path, help="hub directory when no config exists yet, default ~/resalloc")
+    up.add_argument("--no-start", action="store_true", help="prepare the directory without a systemd unit")
 
     submit = sub.add_parser("submit", help="copy a job JSON into the hub inbox")
     submit.add_argument("job", type=Path)
@@ -71,7 +78,7 @@ def main(argv: list[str] | None = None) -> int:
     hub_install = hub_sub.add_parser("install", help="prepare the hub directory on this machine")
     hub_install.add_argument("--no-start", action="store_true", help="do not install or start a systemd unit")
     hub_boot = hub_sub.add_parser("bootstrap", help="install and start the hub on the SSH host")
-    hub_boot.add_argument("--extras", default="", help="modal, kaggle, or all. Default: packages whose keys are already in secrets.env")
+    hub_boot.add_argument("--extras", default="", help="modal, kaggle, or all. Omitted by default so install stays fast")
 
     cache = sub.add_parser("cache")
     cache_sub = cache.add_subparsers(dest="cache_command", required=True)
@@ -106,6 +113,10 @@ def main(argv: list[str] | None = None) -> int:
     laptop_push.add_argument("job_id")
 
     args = parser.parse_args(argv)
+    if args.command is None:
+        parser.print_help()
+        print("\nStart here: resalloc up")
+        return 0
     try:
         return _dispatch(args)
     except Exception as exc:
@@ -135,6 +146,8 @@ def _dispatch(args: argparse.Namespace) -> int:
         )
         print(ResAlloc.submit(job))
         return 0
+    if args.command == "up":
+        return _up(args)
     if args.command == "init":
         return _init(args)
     if args.command == "doctor":
@@ -273,6 +286,30 @@ def _remote(args: argparse.Namespace) -> int:
     if args.ram_gb is not None:
         changes["ram_gb"] = args.ram_gb
     client.edit(args.job_id, **changes)
+    return 0
+
+
+def _up(args: argparse.Namespace) -> int:
+    from resalloc.config import config_path
+    from resalloc.setup import init_config, install_local
+
+    path = config_path()
+    if not path.exists():
+        root = args.hub_root or (Path.home() / "resalloc")
+        print(init_config(path, root, None))
+    elif args.hub_root is not None:
+        print(f"kept {path}")
+    config = resolve()
+    if not config.local:
+        print(
+            "this config points at an SSH hub. Run `resalloc hub bootstrap` for that machine.",
+            file=sys.stderr,
+        )
+        return 1
+    for note in install_local(config, start=not args.no_start):
+        if note:
+            print(note)
+    print("ready")
     return 0
 
 

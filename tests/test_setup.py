@@ -68,7 +68,11 @@ class SetupTest(unittest.TestCase):
         self.assertEqual(parse_extras("all", ""), ["modal", "kaggle"])
         plain = _install_script("/share", "/bin/resalloc", "/hub", [])
         self.assertNotIn("modal>=", plain)
+        self.assertNotIn("python3 -m venv", plain)
         self.assertIn("no user systemd", plain)
+        unit = hub_unit("/bin/resalloc", "/hub", 1024)
+        self.assertIn("Environment=RESALLOC_RESERVE_BYTES=1024\n", unit)
+        self.assertIn("EnvironmentFile=-/hub/secrets.env\n", unit)
         cloud = _install_script("/share", "/bin/resalloc", "/hub", ["modal", "kaggle"])
         self.assertIn("modal>=0.73", cloud)
         self.assertIn("kaggle>=1.6", cloud)
@@ -99,6 +103,28 @@ class SetupTest(unittest.TestCase):
         self.assertTrue(rows["hub"].ok)
         self.assertTrue(rows["disk"].ok)
         self.assertNotIn("linger", rows)
+
+    def test_up_prepares_a_local_hub_in_one_step(self) -> None:
+        from resalloc.cli import main
+
+        with TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            config = root / "config.toml"
+            hub = root / "hub"
+            previous = os.environ.get("RESALLOC_CONFIG")
+            os.environ["RESALLOC_CONFIG"] = str(config)
+            try:
+                code = main(["up", "--no-start", "--hub-root", str(hub)])
+            finally:
+                if previous is None:
+                    os.environ.pop("RESALLOC_CONFIG", None)
+                else:
+                    os.environ["RESALLOC_CONFIG"] = previous
+            self.assertEqual(code, 0)
+            self.assertTrue(config.is_file())
+            self.assertTrue((hub / "secrets.env").is_file())
+            self.assertIn("reserve_bytes", (hub / "hub.toml").read_text(encoding="utf-8"))
+            self.assertEqual(main([]), 0)
 
     def test_hub_install_refuses_a_remote_config(self) -> None:
         from resalloc.cli import main

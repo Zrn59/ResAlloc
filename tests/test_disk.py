@@ -3,13 +3,19 @@ import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
-from resalloc.disk import DiskBudget
+from resalloc.disk import DiskBudget, choose_reserve
 from resalloc.errors import DiskWatermarkError
 from resalloc.hashing import hash_tree
 from resalloc.io import write_json
 
 
 class DiskTest(unittest.TestCase):
+    def test_a_small_disk_keeps_a_reserve_it_can_hold(self) -> None:
+        gib = 1024**3
+        self.assertEqual(choose_reserve(200 * gib), 20 * gib)
+        self.assertEqual(choose_reserve(30 * gib), gib)
+        self.assertLess(choose_reserve(2 * gib), 2 * gib)
+
     def test_hash_changes_when_content_changes(self) -> None:
         with TemporaryDirectory() as temporary:
             root = Path(temporary)

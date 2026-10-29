@@ -77,7 +77,8 @@ class Hub:
     ) -> None:
         self.root = Path(root)
         self.layout = Layout(self.root)
-        self.disk = DiskBudget(self.root, configured_reserve(None if reserve_bytes == DEFAULT_RESERVE_BYTES else reserve_bytes))
+        explicit = None if reserve_bytes == DEFAULT_RESERVE_BYTES else reserve_bytes
+        self.disk = DiskBudget(self.root, configured_reserve(explicit, root=self.root))
         self.now = now or utcnow
         self.providers = providers if providers is not None else default_providers(self.root)
         file_caps, file_total, file_workers, file_probe = load_hub_limits(self.root)

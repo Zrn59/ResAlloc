@@ -20,7 +20,7 @@ class LocalTransport:
     def __init__(self, root: Path, reserve_bytes: int | None = None) -> None:
         self.root = root
         self.layout = Layout(root)
-        self.disk = DiskBudget(root, configured_reserve(reserve_bytes))
+        self.disk = DiskBudget(root, configured_reserve(reserve_bytes, root=root))
         self.layout.ensure()
 
     def cache_exists(self, digest: str) -> bool:

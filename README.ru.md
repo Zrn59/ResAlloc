@@ -36,12 +36,10 @@ Python 3.11 или новее, Linux или macOS. Хаб на другой ма
 
 ```bash
 pip install resalloc
-resalloc init --local
-resalloc hub install
-resalloc hub run
+resalloc up
 ```
 
-`resalloc init` пишет `~/.config/resalloc/config.toml` и не трогает файл, который уже есть. Каталог хаба по умолчанию — `~/resalloc`. Без `ssh_host` хаб — эта машина. Задача только на ноутбуке или на своей SSH-машине не требует ключей API.
+Команда пишет `~/.config/resalloc/config.toml`, создаёт `~/resalloc` и запускает хаб, если у этой учётки есть systemd. У ядра нет зависимостей, поэтому установка не качает Modal и Kaggle. Задача только на ноутбуке или на своей SSH-машине не требует ключей API. На небольшом диске резерв свободного места — 1 ГиБ, на большом остаётся 20 ГиБ.
 
 Облака необязательны. Дополнительный пакет ставь только для тех, которыми пользуешься. Ключи клади в `~/resalloc/secrets.env`:
 
@@ -56,7 +54,7 @@ resalloc init --ssh-host my-server --hub-root /home/me/resalloc
 resalloc hub bootstrap
 ```
 
-`bootstrap` копирует пакет, создаёт `secrets.env`, если его нет, и запускает user-systemd, если он на той учётке есть. Без systemd он просит запустить там `resalloc hub run`. Пакеты Modal и Kaggle ставятся на хаб, только когда их ключи уже лежат в `secrets.env`, или с флагом `--extras all`.
+`bootstrap` копирует пакет и запускает user-systemd, если он на той учётке есть. Виртуальное окружение не создаётся и SDK провайдеров не качаются. Modal и Kaggle добавляются отдельно: `resalloc hub bootstrap --extras all`.
 
 `resalloc doctor` проверяет ту сторону, на которую указывает конфиг.
 

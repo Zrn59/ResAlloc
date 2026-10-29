@@ -217,7 +217,10 @@ def wrapper_script(share_dir: str) -> str:
     )
 
 
-def hub_unit(binary: str, hub_root: str) -> str:
+def hub_unit(binary: str, hub_root: str, reserve_bytes: int | None = None) -> str:
+    reserve = ""
+    if reserve_bytes is not None:
+        reserve = f"        Environment=RESALLOC_RESERVE_BYTES={reserve_bytes}\n"
     return textwrap.dedent(
         f"""\
         [Unit]
@@ -230,7 +233,7 @@ def hub_unit(binary: str, hub_root: str) -> str:
         Environment=RESALLOC_HUB_ROOT={hub_root}
         Environment=RESALLOC_SSH_HOST=
         Environment=RESALLOC_TICK_WORKERS=4
-        EnvironmentFile=-{hub_root}/secrets.env
+{reserve}        EnvironmentFile=-{hub_root}/secrets.env
         Restart=on-failure
         RestartSec=5
 
@@ -317,7 +320,7 @@ def local_checks(config: Config, *, systemd_user: bool | None = None) -> list[Ch
         free = shutil.disk_usage(usage_root).free
         from resalloc.disk import configured_reserve
 
-        reserve = configured_reserve()
+        reserve = configured_reserve(root=root)
         rows.append(Check("disk", free > reserve, f"free={free} reserve={reserve}"))
     secrets = root / "secrets.env"
     if secrets.is_file():
@@ -340,12 +343,34 @@ def local_checks(config: Config, *, systemd_user: bool | None = None) -> list[Ch
     return rows
 
 
+def ensure_hub_reserve(root: Path) -> int:
+    """Write reserve_bytes into hub.toml once. A later edit of that file is kept."""
+
+    from resalloc.disk import choose_reserve, reserve_from_hub
+
+    found = reserve_from_hub(root)
+    if found is not None:
+        return found
+    usage = root if root.exists() else root.parent
+    reserve = choose_reserve(shutil.disk_usage(usage).free)
+    path = root / "hub.toml"
+    if path.is_file():
+        text = path.read_text(encoding="utf-8")
+        if "reserve_bytes" not in text:
+            path.write_text(text.rstrip() + f"\nreserve_bytes = {reserve}\n", encoding="utf-8")
+        return reserve
+    path.write_text(f"reserve_bytes = {reserve}\n", encoding="utf-8")
+    return reserve
+
+
 def install_local(config: Config, *, start: bool = True) -> list[str]:
     """Create the hub directory on this machine and start it when systemd is there."""
 
     root = config.hub_root
     root.mkdir(parents=True, exist_ok=True)
     notes = [f"hub root {root}"]
+    reserve = ensure_hub_reserve(root)
+    notes.append(f"disk reserve {reserve} bytes")
     secrets = root / "secrets.env"
     if not secrets.exists():
         secrets.write_text(secrets_template(), encoding="utf-8")
@@ -359,7 +384,7 @@ def install_local(config: Config, *, start: bool = True) -> list[str]:
     binary = f"{sys.executable} -m resalloc"
     unit = Path.home() / ".config" / "systemd" / "user" / "resalloc-hub.service"
     unit.parent.mkdir(parents=True, exist_ok=True)
-    unit.write_text(hub_unit(binary, str(root)), encoding="utf-8")
+    unit.write_text(hub_unit(binary, str(root), reserve), encoding="utf-8")
     systemctl = shutil.which("systemctl") or "systemctl"
     reload = subprocess.run([systemctl, "--user", "daemon-reload"], capture_output=True, text=True)
     if reload.returncode != 0:
@@ -446,7 +471,7 @@ def package_dir() -> Path:
 
 
 def bootstrap(config: Config, extras: str = "") -> list[str]:
-    """Copy the package to the hub and start it. Cloud CLIs are installed only when asked or when their keys are already present."""
+    """Copy the package to the hub and start it. Modal and Kaggle are installed only with --extras."""
 
     if not config.ssh_host:
         raise RuntimeError("hub bootstrap needs ssh_host in the config")
@@ -464,10 +489,12 @@ def bootstrap(config: Config, extras: str = "") -> list[str]:
     if rsync.returncode != 0:
         raise RuntimeError(rsync.stderr.strip() or "rsync to the hub failed")
     notes.append(f"package -> {share}/resalloc")
-    secret_text = _remote_secret_text(config)
+    chosen: list[str] = []
+    if extras.strip():
+        chosen = parse_extras(extras, _remote_secret_text(config))
     installed = run_command(
         ssh_base(config) + ["sh", "-s"],
-        input_text=_install_script(share, binary, hub, parse_extras(extras, secret_text)),
+        input_text=_install_script(share, binary, hub, chosen),
     )
     if installed.returncode != 0:
         raise RuntimeError((installed.stderr or installed.stdout).strip() or "hub install failed")
@@ -524,19 +551,15 @@ def _install_script(share: str, binary: str, hub: str, extras: list[str] | None 
             packages.append("'kaggle>=1.6'")
     pip_line = ""
     if packages:
-        pip_line = f'"$PY" -m pip install -q {" ".join(packages)} || echo "optional provider packages were not installed"\n'
+        pip_line = (
+            f"python3 -m pip install -q --user {' '.join(packages)}"
+            " || echo 'optional provider packages were not installed'\n"
+        )
     return (
         "set -eu\n"
         "if ! command -v python3 >/dev/null 2>&1; then\n"
         "  echo 'python3 is required' >&2\n"
         "  exit 1\n"
-        "fi\n"
-        "PY=python3\n"
-        "if [ ! -x \"$HOME/resalloc-venv/bin/python\" ]; then\n"
-        "  python3 -m venv \"$HOME/resalloc-venv\" || true\n"
-        "fi\n"
-        "if [ -x \"$HOME/resalloc-venv/bin/python\" ]; then\n"
-        "  PY=\"$HOME/resalloc-venv/bin/python\"\n"
         "fi\n"
         f"{pip_line}"
         "mkdir -p \"$HOME/.config/systemd/user\"\n"

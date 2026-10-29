@@ -36,7 +36,7 @@ max_running = 2
 
 Как включить:
 
-1. `resalloc init --local` и `resalloc hub install`, если хаб на этой машине. Либо `resalloc init --ssh-host ИМЯ --hub-root КАТАЛОГ` и `resalloc hub bootstrap`, если хаб на другой.
+1. `resalloc up`, если хаб на этой машине. Либо `resalloc init --ssh-host ИМЯ --hub-root КАТАЛОГ` и `resalloc hub bootstrap`, если хаб на другой. `bootstrap` не ставит venv и не качает Modal или Kaggle, пока не передан `--extras all`.
 2. Ключи нужных провайдеров — в `secrets.env` на хабе. Runpod, Vast, Modal и Kaggle без своих ключей не стартуют. Ноутбук и SSH-машина стартуют без ключей.
 3. После правки секретов перезапусти демон (`systemctl --user restart resalloc-hub`, либо снова `resalloc hub run`).
 4. Для прямой заливки датасета на Modal или Kaggle те же ключи нужны и на ноутбуке: байты идут мимо хаба.

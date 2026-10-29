@@ -12,14 +12,47 @@ from resalloc.io import parse_dt, read_json, utcnow, write_json
 from resalloc.names import safe_digest
 
 DEFAULT_RESERVE_BYTES = 20 * 1024**3
+_GIB = 1024**3
 
 
-def configured_reserve(explicit: int | None = None) -> int:
+def choose_reserve(free_bytes: int) -> int:
+    """20 GiB on a large disk. A smaller disk keeps a reserve it can actually hold."""
+
+    if free_bytes >= 80 * _GIB:
+        return DEFAULT_RESERVE_BYTES
+    if free_bytes >= 8 * _GIB:
+        return _GIB
+    return max(64 * 1024**2, free_bytes // 10)
+
+
+def reserve_from_hub(root: Path) -> int | None:
+    path = root / "hub.toml"
+    if not path.is_file():
+        return None
+    import tomllib
+
+    with path.open("rb") as handle:
+        data = tomllib.load(handle)
+    if isinstance(data, dict) and data.get("reserve_bytes") is not None:
+        return int(data["reserve_bytes"])
+    return None
+
+
+def configured_reserve(explicit: int | None = None, root: Path | None = None) -> int:
     if explicit is not None:
         return explicit
     raw = os.environ.get("RESALLOC_RESERVE_BYTES")
     if raw:
         return int(raw)
+    if root is not None:
+        found = reserve_from_hub(root)
+        if found is not None:
+            return found
+    hub = os.environ.get("RESALLOC_HUB_ROOT")
+    if hub:
+        found = reserve_from_hub(Path(hub))
+        if found is not None:
+            return found
     return DEFAULT_RESERVE_BYTES
 
 

@@ -36,12 +36,10 @@ Python 3.11 or newer, on Linux or macOS. A hub on another machine also needs Ope
 
 ```bash
 pip install resalloc
-resalloc init --local
-resalloc hub install
-resalloc hub run
+resalloc up
 ```
 
-`resalloc init` writes `~/.config/resalloc/config.toml` and does not touch a file that is already there. The hub directory defaults to `~/resalloc`. With no `ssh_host`, this machine is the hub. A laptop-only job, or a job on an SSH machine you already have, needs no API keys.
+That writes `~/.config/resalloc/config.toml`, creates `~/resalloc`, and starts the hub when this account has systemd. The core package has no dependencies, so the install does not download Modal or Kaggle. A laptop-only job, or a job on an SSH machine you already have, needs no API keys. On a smaller disk the free-space reserve is 1 GiB; on a large disk it stays 20 GiB.
 
 Cloud providers are optional. Install the extra only for the ones you use, and put those keys in `~/resalloc/secrets.env`:
 
@@ -56,7 +54,7 @@ resalloc init --ssh-host my-server --hub-root /home/me/resalloc
 resalloc hub bootstrap
 ```
 
-`bootstrap` copies the package, writes `secrets.env` if it is missing, and starts a user systemd service when the remote account has one. Without systemd it tells you to run `resalloc hub run` there. Modal and Kaggle packages are installed on the hub only when their keys are already in `secrets.env`, or when you pass `--extras all`.
+`bootstrap` copies the package and starts a user systemd service when the remote account has one. It does not create a virtualenv and does not download provider SDKs. Add those with `resalloc hub bootstrap --extras all` when you actually use Modal or Kaggle.
 
 `resalloc doctor` checks whichever side the config points at.
 
