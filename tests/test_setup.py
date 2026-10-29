@@ -5,6 +5,7 @@ from tempfile import TemporaryDirectory
 
 from resalloc.config import Config
 from resalloc.setup import (
+    SwitchHubError,
     _install_script,
     checks_from_probe,
     extras_for_secrets,
@@ -15,6 +16,8 @@ from resalloc.setup import (
     local_checks,
     parse_edits,
     parse_extras,
+    quickstart,
+    remote_target,
     secret_names,
     wrapper_script,
 )
@@ -124,7 +127,18 @@ class SetupTest(unittest.TestCase):
             self.assertTrue(config.is_file())
             self.assertTrue((hub / "secrets.env").is_file())
             self.assertIn("reserve_bytes", (hub / "hub.toml").read_text(encoding="utf-8"))
-            self.assertEqual(main([]), 0)
+            self.assertIn("resalloc up --ssh-host", quickstart())
+            self.assertEqual(main(["help"]), 0)
+
+    def test_remote_hub_target_uses_the_host_home_directory(self) -> None:
+        root, overwrite = remote_target(None, None, "hosting", None, force=False, remote_home="/home/me")
+        self.assertEqual(root, Path("/home/me/resalloc"))
+        self.assertTrue(overwrite)
+        kept, again = remote_target("hosting", root, "hosting", None, force=False, remote_home=None)
+        self.assertEqual(kept, root)
+        self.assertFalse(again)
+        with self.assertRaises(SwitchHubError):
+            remote_target(None, Path("/home/me/resalloc"), "hosting", None, force=False, remote_home="/home/me")
 
     def test_hub_install_refuses_a_remote_config(self) -> None:
         from resalloc.cli import main

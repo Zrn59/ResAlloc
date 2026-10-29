@@ -36,7 +36,7 @@ A job id is letters, digits, dot, `_`, and `-` only. A dataset hash is sha256. A
 
 How to turn it on:
 
-1. `resalloc up` when the hub is this machine. Or `resalloc init --ssh-host NAME --hub-root DIR` and `resalloc hub bootstrap` when the hub is somewhere else. `bootstrap` does not create a virtualenv and does not download Modal or Kaggle unless you pass `--extras all`.
+1. `resalloc up` when the hub is this machine. When this laptop only submits jobs and the hub is hosting: `resalloc up --ssh-host NAME`. `NAME` must already be a `Host` in `~/.ssh/config`. The directory on that host defaults to `~/resalloc`. `bootstrap` by itself does not create a virtualenv and does not download Modal or Kaggle unless you pass `--extras all`.
 2. Keys for the providers you use go in `secrets.env` on the hub. Runpod, Vast, Modal, and Kaggle do not start without theirs. The laptop and an SSH machine start with no keys.
 3. After editing secrets, restart the daemon (`systemctl --user restart resalloc-hub`, or `resalloc hub run` again).
 4. A direct upload to Modal or Kaggle also needs those keys on the laptop: the bytes skip the hub.

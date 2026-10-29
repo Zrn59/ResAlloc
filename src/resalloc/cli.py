@@ -21,13 +21,17 @@ from resalloc.setup import format_journal
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         prog="resalloc",
-        epilog="Start here: resalloc up",
+        epilog="Start here: resalloc help",
     )
     sub = parser.add_subparsers(dest="command")
 
-    up = sub.add_parser("up", help="create the local hub and start it. one command")
-    up.add_argument("--hub-root", type=Path, help="hub directory when no config exists yet, default ~/resalloc")
-    up.add_argument("--no-start", action="store_true", help="prepare the directory without a systemd unit")
+    sub.add_parser("help", help="short setup: this machine, or a laptop plus a hosting hub")
+    up = sub.add_parser("up", help="start the hub here, or on --ssh-host")
+    up.add_argument("--ssh-host", help="SSH Host from ~/.ssh/config. That machine becomes the hub.")
+    up.add_argument("--hub-root", type=Path, help="hub directory. Default ~/resalloc, or ~/resalloc on the SSH host")
+    up.add_argument("--extras", default="", help="modal, kaggle, or all, when --ssh-host installs the hub")
+    up.add_argument("--force", action="store_true", help="point an existing config at --ssh-host")
+    up.add_argument("--no-start", action="store_true", help="local only: prepare the directory without systemd")
 
     submit = sub.add_parser("submit", help="copy a job JSON into the hub inbox")
     submit.add_argument("job", type=Path)
@@ -114,8 +118,9 @@ def main(argv: list[str] | None = None) -> int:
 
     args = parser.parse_args(argv)
     if args.command is None:
-        parser.print_help()
-        print("\nStart here: resalloc up")
+        from resalloc.setup import quickstart
+
+        print(quickstart())
         return 0
     try:
         return _dispatch(args)
@@ -145,6 +150,11 @@ def _dispatch(args: argparse.Namespace) -> int:
             data_timeout_seconds=float(raw.get("data_timeout_seconds") or 3600),
         )
         print(ResAlloc.submit(job))
+        return 0
+    if args.command == "help":
+        from resalloc.setup import quickstart
+
+        print(quickstart())
         return 0
     if args.command == "up":
         return _up(args)
@@ -291,25 +301,66 @@ def _remote(args: argparse.Namespace) -> int:
 
 def _up(args: argparse.Namespace) -> int:
     from resalloc.config import config_path
-    from resalloc.setup import init_config, install_local
+    from resalloc.setup import NeedRemoteHome, SwitchHubError, bootstrap, init_config, install_local, remote_target
+    from resalloc.setup import _remote_home
 
     path = config_path()
+    if args.ssh_host or (path.exists() and resolve().ssh_host):
+        return _up_remote(args, path, init_config, bootstrap, remote_target, _remote_home, SwitchHubError, NeedRemoteHome)
     if not path.exists():
         root = args.hub_root or (Path.home() / "resalloc")
         print(init_config(path, root, None))
     elif args.hub_root is not None:
         print(f"kept {path}")
-    config = resolve()
-    if not config.local:
-        print(
-            "this config points at an SSH hub. Run `resalloc hub bootstrap` for that machine.",
-            file=sys.stderr,
-        )
-        return 1
-    for note in install_local(config, start=not args.no_start):
+    for note in install_local(resolve(), start=not args.no_start):
         if note:
             print(note)
     print("ready")
+    return 0
+
+
+def _up_remote(args, path, init_config, bootstrap, remote_target, remote_home, switch_error, need_home) -> int:
+    if args.no_start:
+        print("--no-start only applies to a hub on this machine.", file=sys.stderr)
+        return 1
+    existing_host = None
+    existing_root = None
+    if path.exists():
+        current = resolve()
+        existing_host = current.ssh_host
+        existing_root = current.hub_root
+    host = args.ssh_host or existing_host
+    try:
+        root, overwrite = remote_target(
+            existing_host,
+            existing_root,
+            host,
+            args.hub_root,
+            force=args.force,
+            remote_home=None,
+        )
+    except need_home:
+        home = remote_home(
+            resolve(hub_root=existing_root or Path.home() / "resalloc", ssh_host=host, prefer_local=False)
+        )
+        root, overwrite = remote_target(
+            existing_host,
+            existing_root,
+            host,
+            args.hub_root,
+            force=args.force,
+            remote_home=home,
+        )
+    except switch_error as exc:
+        print(str(exc), file=sys.stderr)
+        return 1
+    print(init_config(path, root, host, force=overwrite))
+    for note in bootstrap(resolve(), extras=args.extras):
+        if note:
+            print(note)
+    print(f"hub {host}:{root}")
+    print(f"keys: {root}/secrets.env on {host}")
+    print("check: resalloc doctor")
     return 0
 
 

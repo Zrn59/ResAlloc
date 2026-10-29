@@ -283,6 +283,74 @@ def render_config(hub_root: Path, ssh_host: str | None) -> str:
     return "\n".join(lines) + "\n"
 
 
+class SwitchHubError(ValueError):
+    """The laptop config already points somewhere else."""
+
+
+class NeedRemoteHome(Exception):
+    """The hub directory is the remote home, and it has not been looked up yet."""
+
+
+def remote_target(
+    existing_host: str | None,
+    existing_root: Path | None,
+    ssh_host: str,
+    hub_root: Path | None,
+    *,
+    force: bool,
+    remote_home: str | None,
+) -> tuple[Path, bool]:
+    """Where the hub directory is, and whether the laptop config should be rewritten."""
+
+    if hub_root is not None:
+        if existing_root is not None and existing_host != ssh_host and not force:
+            if not existing_host:
+                raise SwitchHubError("config is local. Pass --force to point this laptop at the SSH hub.")
+            raise SwitchHubError(f"config points at {existing_host}. Pass --force to switch to {ssh_host}.")
+        changed = existing_root is None or existing_host != ssh_host or existing_root != hub_root
+        return hub_root, changed
+    if existing_root is not None and existing_host == ssh_host:
+        return existing_root, False
+    if existing_root is not None and not force:
+        if not existing_host:
+            raise SwitchHubError("config is local. Pass --force to point this laptop at the SSH hub.")
+        raise SwitchHubError(f"config points at {existing_host}. Pass --force to switch to {ssh_host}.")
+    if not remote_home:
+        raise NeedRemoteHome()
+    return Path(remote_home) / "resalloc", True
+
+
+def quickstart() -> str:
+    return textwrap.dedent(
+        """\
+        На этой машине хаб:
+          pip install resalloc && resalloc up
+
+        Ноутбук сдаёт задачи, хостинг — узел. Имя Host уже лежит в ~/.ssh/config:
+          resalloc up --ssh-host ИМЯ
+
+        Потом ключи провайдеров в secrets.env на хабе и проверка:
+          resalloc doctor
+
+        This machine is the hub:
+          pip install resalloc && resalloc up
+
+        The laptop submits jobs, another host is the hub:
+          resalloc up --ssh-host NAME
+
+        Then put provider keys in the hub's secrets.env and check:
+          resalloc doctor
+
+        resalloc help      эта страница / this page
+        resalloc --help    все команды / every command
+        docs/SHORT.md      кратко по-русски
+        docs/en/SHORT.md   short English
+        README.ru.md       полный русский текст
+        README.md          full English
+        """
+    )
+
+
 def init_config(path: Path, hub_root: Path, ssh_host: str | None, *, force: bool = False) -> str:
     path.parent.mkdir(parents=True, exist_ok=True)
     if path.exists() and not force:

@@ -36,27 +36,24 @@ Python 3.11 or newer, on Linux or macOS. A hub on another machine also needs Ope
 
 ```bash
 pip install resalloc
+resalloc help
+```
+
+Two setups:
+
+```bash
+# this machine is the hub
 resalloc up
+
+# this laptop submits jobs, NAME in ~/.ssh/config is the hub
+resalloc up --ssh-host NAME
 ```
 
-That writes `~/.config/resalloc/config.toml`, creates `~/resalloc`, and starts the hub when this account has systemd. The core package has no dependencies, so the install does not download Modal or Kaggle. A laptop-only job, or a job on an SSH machine you already have, needs no API keys. On a smaller disk the free-space reserve is 1 GiB; on a large disk it stays 20 GiB.
+`resalloc up` writes `~/.config/resalloc/config.toml`. Locally the hub directory is `~/resalloc`. With `--ssh-host` the directory is `~/resalloc` on that host, the package is copied there, and the daemon starts when that account has systemd. Nothing else is downloaded. Modal and Kaggle, if you use them, are `resalloc up --ssh-host NAME --extras all`.
 
-Cloud providers are optional. Install the extra only for the ones you use, and put those keys in `~/resalloc/secrets.env`:
+Then put provider keys in the hub's `secrets.env` and run `resalloc doctor`. `resalloc --help` lists every command. The short notes are [docs/SHORT.md](docs/SHORT.md) and [docs/en/SHORT.md](docs/en/SHORT.md).
 
-```bash
-pip install "resalloc[all]"   # modal and kaggle; runpod and vast use the standard library
-```
-
-Hub on another computer: put that computer's `Host` name from `~/.ssh/config` in the config, then install over SSH.
-
-```bash
-resalloc init --ssh-host my-server --hub-root /home/me/resalloc
-resalloc hub bootstrap
-```
-
-`bootstrap` copies the package and starts a user systemd service when the remote account has one. It does not create a virtualenv and does not download provider SDKs. Add those with `resalloc hub bootstrap --extras all` when you actually use Modal or Kaggle.
-
-`resalloc doctor` checks whichever side the config points at.
+The core package has no dependencies. A laptop-only job, or a job on an SSH machine you already have, needs no API keys. On a smaller disk the free-space reserve is 1 GiB; on a large disk it stays 20 GiB. Runpod and Vast use the standard library. Modal and Kaggle need `pip install "resalloc[all]"` on the machine that calls their APIs.
 
 Keys stay in the hub's `secrets.env` (`chmod 600`), not in the repo:
 

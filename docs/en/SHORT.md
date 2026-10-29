@@ -2,6 +2,8 @@
 
 **English** · [Русский](../SHORT.md)
 
+Setup is `resalloc help`. This machine as the hub is `resalloc up`. This laptop submits jobs and another host is the hub: `resalloc up --ssh-host NAME`, where `NAME` is already a `Host` in `~/.ssh/config`.
+
 The laptop submits a job. The hub watches money and quota and moves the same `train.py` across Runpod, Vast.ai, Modal, Kaggle, a plain SSH machine, and the laptop. Checkpoints and the journal always stay on the hub. The dataset itself does not have to. How many jobs run at once is `hub.toml` on the hub (`max_running`, plus a cap per provider). A script that crashes is not sent down the list: that is `worker_failed`, and `resalloc resume` continues it after the fix.
 
 Three ways for the bytes:

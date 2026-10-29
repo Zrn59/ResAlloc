@@ -6,7 +6,8 @@ Code: `src/resalloc/cli.py`.
 
 | Command | Why |
 | --- | --- |
-| `resalloc up` | one command: config, hub directory, and start. `--no-start` only prepares the directory |
+| `resalloc` / `resalloc help` | short setup: hub on this machine, or a laptop plus a hosting hub |
+| `resalloc up` | hub on this machine. `--ssh-host NAME` installs the hub on that `~/.ssh/config` host. `--no-start` is local only |
 | `resalloc init` | write `~/.config/resalloc/config.toml`. `--local`, `--ssh-host`, `--hub-root`. An existing file is kept unless `--force` |
 | `resalloc submit job.json` | submit a job. The JSON has the same fields as `Job` |
 | `resalloc status [JOB]` | state, provider, step, checkpoint freshness, next step |

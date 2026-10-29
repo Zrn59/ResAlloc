@@ -36,27 +36,24 @@ Python 3.11 или новее, Linux или macOS. Хаб на другой ма
 
 ```bash
 pip install resalloc
+resalloc help
+```
+
+Два варианта:
+
+```bash
+# хаб на этой машине
 resalloc up
+
+# этот ноутбук сдаёт задачи, ИМЯ из ~/.ssh/config — узел-хаб
+resalloc up --ssh-host ИМЯ
 ```
 
-Команда пишет `~/.config/resalloc/config.toml`, создаёт `~/resalloc` и запускает хаб, если у этой учётки есть systemd. У ядра нет зависимостей, поэтому установка не качает Modal и Kaggle. Задача только на ноутбуке или на своей SSH-машине не требует ключей API. На небольшом диске резерв свободного места — 1 ГиБ, на большом остаётся 20 ГиБ.
+`resalloc up` пишет `~/.config/resalloc/config.toml`. Локально каталог хаба — `~/resalloc`. С `--ssh-host` каталог `~/resalloc` создаётся на том хосте, пакет копируется туда, и демон запускается, если у той учётки есть systemd. Больше ничего не скачивается. Modal и Kaggle, если они нужны: `resalloc up --ssh-host ИМЯ --extras all`.
 
-Облака необязательны. Дополнительный пакет ставь только для тех, которыми пользуешься. Ключи клади в `~/resalloc/secrets.env`:
+Дальше ключи провайдеров в `secrets.env` на хабе и `resalloc doctor`. Все команды: `resalloc --help`. Короткие заметки: [docs/SHORT.md](docs/SHORT.md) и [docs/en/SHORT.md](docs/en/SHORT.md).
 
-```bash
-pip install "resalloc[all]"   # modal и kaggle; runpod и vast работают на стандартной библиотеке
-```
-
-Хаб на другом компьютере: имя `Host` из `~/.ssh/config`, затем установка по SSH.
-
-```bash
-resalloc init --ssh-host my-server --hub-root /home/me/resalloc
-resalloc hub bootstrap
-```
-
-`bootstrap` копирует пакет и запускает user-systemd, если он на той учётке есть. Виртуальное окружение не создаётся и SDK провайдеров не качаются. Modal и Kaggle добавляются отдельно: `resalloc hub bootstrap --extras all`.
-
-`resalloc doctor` проверяет ту сторону, на которую указывает конфиг.
+У ядра нет зависимостей. Задача только на ноутбуке или на своей SSH-машине не требует ключей API. На небольшом диске резерв — 1 ГиБ, на большом остаётся 20 ГиБ. Runpod и Vast работают на стандартной библиотеке. Modal и Kaggle ставятся через `pip install "resalloc[all]"` на той машине, которая вызывает их API.
 
 Ключи остаются в `secrets.env` на хабе (`chmod 600`) и в репозиторий не попадают:
 
