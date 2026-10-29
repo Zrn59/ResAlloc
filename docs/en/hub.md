@@ -28,7 +28,16 @@ probe_failures = 5
 max_running = 2
 ```
 
-The top-level `max_running` is the cap for every job. A provider section is that provider's own cap. A job that does not fit stays `queued` with reason `at_capacity`. `RESALLOC_TICK_WORKERS` probes several live jobs in parallel. Starts themselves run one at a time. `probe_failures` is how many ticks an API may fail before the hub treats the workload as gone and releases it. The systemd unit sets `RESALLOC_TICK_WORKERS=4`.
+The top-level `max_running` is the cap for every job. A provider section is that provider's own cap. A job that does not fit stays `queued` with reason `at_capacity`. `RESALLOC_TICK_WORKERS` probes several live jobs in parallel. Starts themselves run one at a time. `probe_failures` is how many ticks an API may fail before the hub treats the workload as gone and releases it. The systemd unit sets `RESALLOC_TICK_WORKERS=4`. A new `hub.toml` includes these lines as comments, next to `reserve_bytes`. A file that already exists is left as it is.
+
+When a job enters `awaiting_confirm`, the hub sends one notice. Later ticks and a daemon restart do not send it again.
+
+```toml
+notify_url = "https://ntfy.sh/your-topic"
+notify_command = "notify-send resalloc"
+```
+
+`notify_url` gets a POST of `{job_id, state, reason, provider}`. The address has to be `http` or `https`. `notify_command` runs with no shell: `shlex` splits the arguments. The command's environment includes `RESALLOC_JOB_ID`, `RESALLOC_NOTIFY_STATE`, `RESALLOC_NOTIFY_REASON`, and `RESALLOC_NOTIFY_PROVIDER`. `RESALLOC_NOTIFY_URL` and `RESALLOC_NOTIFY_COMMAND` override the file. `resalloc config` only says whether a notice is configured, and does not print the address.
 
 A job id is letters, digits, dot, `_`, and `-` only. A dataset hash is sha256. A `script` path or a dataset name that leaves the job directory is refused.
 

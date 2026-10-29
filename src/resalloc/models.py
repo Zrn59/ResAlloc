@@ -63,6 +63,24 @@ class Limits:
         }
 
 
+def merge_limits(limits: Limits, saved: dict[str, Any] | None) -> Limits:
+    """Fill fields the job left at their defaults from a saved ``[limits]`` table.
+
+    A value set on the job itself wins. Keys are the same names ``Limits.to_dict`` uses.
+    """
+
+    if not saved:
+        return limits
+    base = Limits().to_dict()
+    current = limits.to_dict()
+    merged = dict(current)
+    for key, value in saved.items():
+        if key not in base or current[key] != base[key]:
+            continue
+        merged[key] = value
+    return limits_from_dict(merged)
+
+
 def limits_from_dict(data: dict[str, Any]) -> Limits:
     return Limits(
         soft_buffer=timedelta(seconds=float(data.get("soft_buffer_seconds", 900))),

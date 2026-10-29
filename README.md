@@ -51,7 +51,7 @@ resalloc up --ssh-host NAME
 
 `resalloc up` writes `~/.config/resalloc/config.toml`. Locally the hub directory is `~/resalloc`. With `--ssh-host` the directory is `~/resalloc` on that host, the package is copied there, and the daemon starts when that account has systemd. Nothing else is downloaded. Modal and Kaggle, if you use them, are `resalloc up --ssh-host NAME --extras all`.
 
-Then put provider keys in the hub's `secrets.env` and run `resalloc doctor`. `resalloc --help` lists every command. The short notes are [docs/SHORT.md](docs/SHORT.md) and [docs/en/SHORT.md](docs/en/SHORT.md).
+Then put provider keys in the hub's `secrets.env` and run `resalloc doctor`. `resalloc config` shows the laptop, the hub, the disk reserve, the caps, and the names of secrets. It does not print secret values. Spend caps for every job go in `[limits]` in `config.toml`; a value set on the job itself wins. `resalloc --help` lists every command. The short notes are [docs/SHORT.md](docs/SHORT.md) and [docs/en/SHORT.md](docs/en/SHORT.md).
 
 The core package has no dependencies. A laptop-only job, or a job on an SSH machine you already have, needs no API keys. On a smaller disk the free-space reserve is 1 GiB; on a large disk it stays 20 GiB. Runpod and Vast use the standard library. Modal and Kaggle need `pip install "resalloc[all]"` on the machine that calls their APIs.
 

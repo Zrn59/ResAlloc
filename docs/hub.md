@@ -28,7 +28,16 @@ probe_failures = 5
 max_running = 2
 ```
 
-`max_running` сверху — потолок на все задачи. Секция провайдера — его собственный потолок. Не влезшая задача остаётся `queued` с причиной `at_capacity`. `RESALLOC_TICK_WORKERS` опрашивает несколько живых задач параллельно; сами старты идут по одному. `probe_failures` — сколько тиков API может молчать, прежде чем хаб посчитает запуск пропавшим и снимет его. Юнит systemd ставит `RESALLOC_TICK_WORKERS=4`.
+`max_running` сверху — потолок на все задачи. Секция провайдера — его собственный потолок. Не влезшая задача остаётся `queued` с причиной `at_capacity`. `RESALLOC_TICK_WORKERS` опрашивает несколько живых задач параллельно; сами старты идут по одному. `probe_failures` — сколько тиков API может молчать, прежде чем хаб посчитает запуск пропавшим и снимет его. Юнит systemd ставит `RESALLOC_TICK_WORKERS=4`. Новый `hub.toml` содержит эти строки закомментированными, рядом с `reserve_bytes`. Уже записанный файл не переписывается.
+
+Когда задача переходит в `awaiting_confirm`, хаб один раз шлёт уведомление. Повторные тики и перезапуск демона его не повторяют.
+
+```toml
+notify_url = "https://ntfy.sh/your-topic"
+notify_command = "notify-send resalloc"
+```
+
+`notify_url` получает POST с JSON `{job_id, state, reason, provider}`. Адрес должен быть `http` или `https`. `notify_command` запускается без оболочки: аргументы разделяет `shlex`. В окружении команды есть `RESALLOC_JOB_ID`, `RESALLOC_NOTIFY_STATE`, `RESALLOC_NOTIFY_REASON` и `RESALLOC_NOTIFY_PROVIDER`. `RESALLOC_NOTIFY_URL` и `RESALLOC_NOTIFY_COMMAND` перекрывают файл. `resalloc config` показывает только, включено уведомление или нет, и не печатает адрес.
 
 Идентификатор задачи — только буквы, цифры, точка, `_` и `-`. Хеш датасета — sha256. Чужие пути в `script` и в имени датасета хаб не принимает.
 

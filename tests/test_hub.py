@@ -1,3 +1,7 @@
+import json
+import os
+import shlex
+import sys
 import unittest
 from datetime import timedelta
 from pathlib import Path
@@ -12,7 +16,7 @@ from resalloc.providers.laptop import LaptopAdapter, write_heartbeat
 from resalloc.records import write_command
 from tests.fakes import FakeProvider
 
-from resalloc.hub import Hub
+from resalloc.hub import Hub, send_confirm_notice
 
 
 def _limits() -> Limits:
@@ -243,6 +247,59 @@ class HubTest(unittest.TestCase):
         self.assertEqual(hub.max_total, 3)
         self.assertEqual(hub.max_running["runpod"], 1)
         self.assertEqual(hub.probe_failures, 4)
+
+    def test_parking_runs_the_notify_command_once(self) -> None:
+        marker = self.root / "noted"
+        script = self.root / "note.py"
+        script.write_text(
+            "import os\nfrom pathlib import Path\n"
+            f"Path({str(marker)!r}).write_text("
+            "os.environ['RESALLOC_JOB_ID'] + '\\n' + os.environ.get('RESALLOC_NOTIFY_PROVIDER', '') + '\\n',"
+            " encoding='utf-8')\n",
+            encoding="utf-8",
+        )
+        command = shlex.join([sys.executable, str(script)])
+        (self.root / "hub.toml").write_text(
+            "notify_command = " + json.dumps(command) + "\n",
+            encoding="utf-8",
+        )
+        previous_url = os.environ.pop("RESALLOC_NOTIFY_URL", None)
+        previous_command = os.environ.pop("RESALLOC_NOTIFY_COMMAND", None)
+        try:
+            job_id = self._submit(
+                _job(
+                    self.script,
+                    RunPod(gpu="NVIDIA GeForce RTX 4090"),
+                    [Migrate(Modal(gpu="A10G"), confirm=True)],
+                )
+            )
+            self.hub.tick()
+            self.runpod.snapshot = AccountSnapshot(provider="runpod", alive=True, headroom_usd=0, burn_usd_per_hour=1)
+            self.hub.tick()
+            self.hub.tick()
+        finally:
+            if previous_url is not None:
+                os.environ["RESALLOC_NOTIFY_URL"] = previous_url
+            if previous_command is not None:
+                os.environ["RESALLOC_NOTIFY_COMMAND"] = previous_command
+        journal = self._journal(job_id)
+        self.assertEqual(journal["state"], "awaiting_confirm")
+        self.assertTrue(journal["confirm_notified"])
+        self.assertEqual(marker.read_text(encoding="utf-8"), f"{job_id}\nmodal\n")
+
+    def test_notice_is_skipped_when_nothing_is_configured(self) -> None:
+        previous_url = os.environ.pop("RESALLOC_NOTIFY_URL", None)
+        previous_command = os.environ.pop("RESALLOC_NOTIFY_COMMAND", None)
+        try:
+            self.assertFalse(send_confirm_notice(self.root, {"id": "job"}))
+            (self.root / "hub.toml").write_text('notify_url = "file:///tmp/nope"\n', encoding="utf-8")
+            with self.assertRaises(ValueError):
+                send_confirm_notice(self.root, {"id": "job", "reason": "next"}, "modal")
+        finally:
+            if previous_url is not None:
+                os.environ["RESALLOC_NOTIFY_URL"] = previous_url
+            if previous_command is not None:
+                os.environ["RESALLOC_NOTIFY_COMMAND"] = previous_command
 
     def test_offline_laptop_is_refused_at_submit(self) -> None:
         from resalloc.errors import LaptopOfflineError

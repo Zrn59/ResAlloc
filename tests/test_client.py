@@ -102,6 +102,93 @@ class ClientTest(unittest.TestCase):
             self.assertEqual(payload["id"], job_id)
             self.assertEqual(payload["state"], "running")
 
+    def test_submit_fills_default_limits_from_the_config_file(self) -> None:
+        from resalloc.models import Limits
+
+        with TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            config = root / "config.toml"
+            config.write_text(
+                f'hub_root = "{root}"\n\n[limits]\nmodal_max_spend_usd = 10\nrunpod_max_spend_usd = 4\n',
+                encoding="utf-8",
+            )
+            script = root / "train.py"
+            script.write_text("print(1)\n", encoding="utf-8")
+            previous = os.environ.get("RESALLOC_CONFIG")
+            previous_host = os.environ.get("RESALLOC_SSH_HOST")
+            os.environ["RESALLOC_CONFIG"] = str(config)
+            os.environ["RESALLOC_SSH_HOST"] = ""
+            try:
+                explicit = ResAlloc(hub_root=root, reserve_bytes=1024 * 1024).submit(
+                    Job(
+                        script=str(script),
+                        start=RunPod(gpu="NVIDIA GeForce RTX 4090"),
+                        limits=Limits(modal_max_spend_usd=8),
+                    )
+                )
+                defaulted = ResAlloc(hub_root=root, reserve_bytes=1024 * 1024).submit(
+                    Job(script=str(script), start=RunPod(gpu="NVIDIA GeForce RTX 4090"))
+                )
+            finally:
+                if previous is None:
+                    os.environ.pop("RESALLOC_CONFIG", None)
+                else:
+                    os.environ["RESALLOC_CONFIG"] = previous
+                if previous_host is None:
+                    os.environ.pop("RESALLOC_SSH_HOST", None)
+                else:
+                    os.environ["RESALLOC_SSH_HOST"] = previous_host
+            explicit_limits = json.loads((root / "inbox" / explicit / "job.json").read_text(encoding="utf-8"))["limits"]
+            default_limits = json.loads((root / "inbox" / defaulted / "job.json").read_text(encoding="utf-8"))["limits"]
+            self.assertEqual(explicit_limits["modal_max_spend_usd"], 8)
+            self.assertEqual(explicit_limits["runpod_max_spend_usd"], 4)
+            self.assertEqual(default_limits["modal_max_spend_usd"], 10)
+            self.assertEqual(default_limits["runpod_max_spend_usd"], 4)
+
+    def test_edit_flags_are_written_for_the_hub(self) -> None:
+        with TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            previous_root = os.environ.get("RESALLOC_HUB_ROOT")
+            previous_host = os.environ.get("RESALLOC_SSH_HOST")
+            os.environ["RESALLOC_HUB_ROOT"] = str(root)
+            os.environ["RESALLOC_SSH_HOST"] = ""
+            try:
+                code = main(
+                    [
+                        "edit",
+                        "job-1",
+                        "--volume",
+                        "weights",
+                        "--region",
+                        "us-east",
+                        "--cloud",
+                        "aws",
+                        "--max-price",
+                        "0.4",
+                        "--host",
+                        "lab.example",
+                        "--json",
+                        '{"gpu": "RTX 3090"}',
+                    ]
+                )
+            finally:
+                if previous_root is None:
+                    os.environ.pop("RESALLOC_HUB_ROOT", None)
+                else:
+                    os.environ["RESALLOC_HUB_ROOT"] = previous_root
+                if previous_host is None:
+                    os.environ.pop("RESALLOC_SSH_HOST", None)
+                else:
+                    os.environ["RESALLOC_SSH_HOST"] = previous_host
+            self.assertEqual(code, 0)
+            payload = json.loads((root / "jobs" / "job-1" / "commands" / "edit.json").read_text(encoding="utf-8"))
+            self.assertEqual(payload["gpu"], "RTX 3090")
+            self.assertEqual(payload["volume"], "weights")
+            self.assertEqual(payload["region"], "us-east")
+            self.assertEqual(payload["cloud"], "aws")
+            self.assertEqual(payload["max_price"], 0.4)
+            self.assertEqual(payload["host"], "lab.example")
+
 
 if __name__ == "__main__":
     unittest.main()

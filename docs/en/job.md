@@ -20,6 +20,8 @@ Code: `src/resalloc/models.py`, `src/resalloc/worker.py`, `src/resalloc/policy.p
 | `vast_max_hourly_usd` | do not take an offer above this hourly price |
 | `laptop_heartbeat_timeout` | how long a silent laptop counts as down |
 
+The same names `Limits.to_dict()` uses can be written once in `~/.config/resalloc/config.toml` under `[limits]`: `soft_buffer_seconds`, `modal_max_spend_usd`, `runpod_max_spend_usd`, and the rest. On `submit`, a field still at its dataclass default takes the saved value. A value set on the `Job` stays. `data_timeout_seconds` is not part of that table.
+
 `data_timeout_seconds` is on `Job`, not on `Limits`: how long to wait for SSH before a direct dataset is given up. The script then writes a non-zero `finished.json`, so the GPU is not held with no data.
 
 A non-zero script exit is `STOP` with reason `worker_failed`. A vanished pod, a lost laptop heartbeat, and several failed probes in a row still move the job when a next step exists.

@@ -51,7 +51,7 @@ resalloc up --ssh-host ИМЯ
 
 `resalloc up` пишет `~/.config/resalloc/config.toml`. Локально каталог хаба — `~/resalloc`. С `--ssh-host` каталог `~/resalloc` создаётся на том хосте, пакет копируется туда, и демон запускается, если у той учётки есть systemd. Больше ничего не скачивается. Modal и Kaggle, если они нужны: `resalloc up --ssh-host ИМЯ --extras all`.
 
-Дальше ключи провайдеров в `secrets.env` на хабе и `resalloc doctor`. Все команды: `resalloc --help`. Короткие заметки: [docs/SHORT.md](docs/SHORT.md) и [docs/en/SHORT.md](docs/en/SHORT.md).
+Дальше ключи провайдеров в `secrets.env` на хабе и `resalloc doctor`. `resalloc config` показывает ноутбук, хаб, резерв диска, потолки и имена секретов. Значения ключей он не печатает. Общие потолки трат пишутся в `[limits]` в `config.toml`; значение, заданное в самой задаче, важнее. Все команды: `resalloc --help`. Короткие заметки: [docs/SHORT.md](docs/SHORT.md) и [docs/en/SHORT.md](docs/en/SHORT.md).
 
 У ядра нет зависимостей. Задача только на ноутбуке или на своей SSH-машине не требует ключей API. На небольшом диске резерв — 1 ГиБ, на большом остаётся 20 ГиБ. Runpod и Vast работают на стандартной библиотеке. Modal и Kaggle ставятся через `pip install "resalloc[all]"` на той машине, которая вызывает их API.
 

@@ -8,13 +8,13 @@ import uuid
 from pathlib import Path
 from typing import Any
 
-from resalloc.config import resolve
+from resalloc.config import load_file, resolve
 from resalloc.data import describe
 from resalloc.disk import dir_size
 from resalloc.errors import DiskWatermarkError, LaptopOfflineError
 from resalloc.hashing import hash_tree
 from resalloc.io import utcnow, write_json
-from resalloc.models import Dataset, Job
+from resalloc.models import Dataset, Job, merge_limits
 from resalloc.transport import make_transport
 
 
@@ -52,6 +52,8 @@ class ResAlloc:
         self.transport = make_transport(self.config, reserve_bytes)
 
     def _submit(self, job: Job) -> str:
+        saved = load_file().get("limits")
+        limits = merge_limits(job.limits, saved if isinstance(saved, dict) else None)
         script = Path(job.script)
         if not script.is_file():
             raise FileNotFoundError(script)
@@ -59,7 +61,7 @@ class ResAlloc:
         if requirements is not None and not requirements.is_file():
             raise FileNotFoundError(requirements)
         if job.start.to_dict()["type"] == "laptop":
-            status = self.transport.agent_status(job.limits.laptop_heartbeat_timeout.total_seconds())
+            status = self.transport.agent_status(limits.laptop_heartbeat_timeout.total_seconds())
             if not status["online"]:
                 raise LaptopOfflineError(
                     "start is the laptop, and it is not heartbeating. Run `resalloc laptop agent` on it."
@@ -131,7 +133,7 @@ class ResAlloc:
                     "requirements": None if requirements is None else requirements.name,
                     "args": list(job.args),
                     "datasets": shipped,
-                    "limits": job.limits.to_dict(),
+                    "limits": limits.to_dict(),
                     "targets": job.targets(),
                     "confirms": job.confirms(),
                     "data_timeout_seconds": job.data_timeout_seconds,

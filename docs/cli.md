@@ -7,12 +7,13 @@
 | Команда | Зачем |
 | --- | --- |
 | `resalloc` / `resalloc help` | короткая настройка: хаб здесь или ноутбук плюс хостинг-узел |
+| `resalloc config` | ноутбук, каталог хаба, резерв диска, потолки, имена секретов. Значения ключей не печатает |
 | `resalloc up` | хаб на этой машине. `--ssh-host ИМЯ` ставит узел на хост из `~/.ssh/config`. `--no-start` только для локального хаба |
 | `resalloc init` | записать `~/.config/resalloc/config.toml`. Флаги `--local`, `--ssh-host`, `--hub-root`. Уже существующий файл не перезаписывается без `--force` |
 | `resalloc submit job.json` | сдать заявку. В JSON те же поля, что у `Job` |
 | `resalloc status [JOB]` | состояние, провайдер, шаг, свежесть чекпоинта, следующий шаг |
 | `resalloc attach JOB` | ждать и ответить `confirm` или `edit gpu=..., spot=true` |
-| `resalloc edit JOB --gpu ...` | поменять настройки следующего провайдера, пока задача на паузе |
+| `resalloc edit JOB --gpu ...` | поменять следующий провайдер, пока задача на паузе. Ещё `--volume`, `--region`, `--cloud`, `--max-price`, `--host` |
 | `resalloc confirm JOB` | продолжить после паузы |
 | `resalloc resume JOB` | снова запустить остановленную задачу с чекпоинта |
 | `resalloc doctor` | SSH, диск, пакет, демон, linger, секреты и отдельно `KAGGLE_API_TOKEN` |
@@ -23,4 +24,4 @@
 | `resalloc laptop agent` | ноутбук как бесплатный провайдер |
 | `resalloc laptop push JOB` | дослать чекпоинт с ноутбука сразу после `save` |
 
-`edit` в `attach` понимает `key=value` через запятую. `spot` и `internet` — булевы. `disk_gb`, `cpus`, `gpu_count`, `memory_mb`, `ram_gb`, `timeout_hours`, `cpu` — числа. Имя GPU остаётся строкой.
+`edit` в `attach` понимает `key=value` через запятую. `spot` и `internet` — булевы. `disk_gb`, `cpus`, `gpu_count`, `memory_mb`, `ram_gb`, `timeout_hours`, `cpu`, `max_price` — числа. Имя GPU остаётся строкой. `volume`, `region`, `cloud` и `host` тоже строки.

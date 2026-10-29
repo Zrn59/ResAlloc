@@ -9,7 +9,7 @@ from datetime import timedelta
 from pathlib import Path
 
 from resalloc.config import resolve
-from resalloc.disk import DEFAULT_RESERVE_BYTES, DiskBudget
+from resalloc.disk import DiskBudget, configured_reserve
 from resalloc.hub import Hub, laptop_online
 from resalloc.io import read_json
 from resalloc.layout import Layout
@@ -26,6 +26,9 @@ def main(argv: list[str] | None = None) -> int:
     sub = parser.add_subparsers(dest="command")
 
     sub.add_parser("help", help="short setup: this machine, or a laptop plus a hosting hub")
+    config_cmd = sub.add_parser("config", help="show laptop and hub settings, never secret values")
+    config_cmd.add_argument("--json", action="store_true")
+    config_cmd.add_argument("--hub-only", action="store_true", help=argparse.SUPPRESS)
     up = sub.add_parser("up", help="start the hub here, or on --ssh-host")
     up.add_argument("--ssh-host", help="SSH Host from ~/.ssh/config. That machine becomes the hub.")
     up.add_argument("--hub-root", type=Path, help="hub directory. Default ~/resalloc, or ~/resalloc on the SSH host")
@@ -54,6 +57,11 @@ def main(argv: list[str] | None = None) -> int:
     edit.add_argument("--disk-gb", type=int)
     edit.add_argument("--cpus", type=int)
     edit.add_argument("--ram-gb", type=float)
+    edit.add_argument("--volume")
+    edit.add_argument("--region")
+    edit.add_argument("--cloud")
+    edit.add_argument("--max-price", dest="max_price", type=float)
+    edit.add_argument("--host")
 
     resume = sub.add_parser("resume", help="start a stopped job again from its checkpoint")
     resume.add_argument("job_id")
@@ -156,6 +164,8 @@ def _dispatch(args: argparse.Namespace) -> int:
 
         print(quickstart())
         return 0
+    if args.command == "config":
+        return _show_config(args)
     if args.command == "up":
         return _up(args)
     if args.command == "init":
@@ -201,24 +211,7 @@ def _dispatch(args: argparse.Namespace) -> int:
         write_command(root, args.job_id, "resume", {})
         return 0
     if args.command == "edit":
-        changes = json.loads(args.payload) if args.payload else {}
-        if args.gpu:
-            changes["gpu"] = args.gpu
-        if args.image:
-            changes["image"] = args.image
-        if args.accelerator:
-            changes["accelerator"] = args.accelerator
-        if args.spot:
-            changes["spot"] = True
-        if args.no_spot:
-            changes["spot"] = False
-        if args.disk_gb is not None:
-            changes["disk_gb"] = args.disk_gb
-        if args.cpus is not None:
-            changes["cpus"] = args.cpus
-        if args.ram_gb is not None:
-            changes["ram_gb"] = args.ram_gb
-        write_command(root, args.job_id, "edit", changes)
+        write_command(root, args.job_id, "edit", edit_changes(args))
         return 0
     if args.command == "cache" and args.cache_command == "has":
         exists = (Layout(root).cache(args.digest) / "payload").exists()
@@ -231,7 +224,7 @@ def _dispatch(args: argparse.Namespace) -> int:
         DiskBudget(root).touch(args.digest, args.name)
         return 0
     if args.command == "disk" and args.disk_command == "info":
-        print(json.dumps(DiskBudget(root, DEFAULT_RESERVE_BYTES).info()))
+        print(json.dumps(DiskBudget(root, configured_reserve(root=root)).info()))
         return 0
     if args.command == "jobs" and args.jobs_command == "protected":
         print(json.dumps(protected_hashes(root)))
@@ -278,13 +271,18 @@ def _remote(args: argparse.Namespace) -> int:
     if args.command == "resume":
         client.resume(args.job_id)
         return 0
+    client.edit(args.job_id, **edit_changes(args))
+    return 0
+
+
+def edit_changes(args: argparse.Namespace) -> dict:
     changes = json.loads(args.payload) if args.payload else {}
-    if args.gpu:
-        changes["gpu"] = args.gpu
-    if args.image:
-        changes["image"] = args.image
-    if args.accelerator:
-        changes["accelerator"] = args.accelerator
+    if not isinstance(changes, dict):
+        raise ValueError("--json must be an object")
+    for key in ("gpu", "image", "accelerator", "volume", "region", "cloud", "host"):
+        value = getattr(args, key)
+        if value:
+            changes[key] = value
     if args.spot:
         changes["spot"] = True
     if args.no_spot:
@@ -295,8 +293,69 @@ def _remote(args: argparse.Namespace) -> int:
         changes["cpus"] = args.cpus
     if args.ram_gb is not None:
         changes["ram_gb"] = args.ram_gb
-    client.edit(args.job_id, **changes)
+    if args.max_price is not None:
+        changes["max_price"] = args.max_price
+    return changes
+
+
+def _show_config(args: argparse.Namespace) -> int:
+    from resalloc.config import config_path, load_file
+    from resalloc.setup import describe_hub
+    from resalloc.transport import SshTransport, make_transport
+
+    config = resolve()
+    if args.hub_only:
+        print(json.dumps(describe_hub(config.hub_root)))
+        return 0
+    file_data = load_file()
+    limits = file_data.get("limits") if isinstance(file_data.get("limits"), dict) else {}
+    laptop = {
+        "config": str(config_path()),
+        "local": config.local,
+        "ssh_host": config.ssh_host,
+        "hub_root": str(config.hub_root),
+        "limits": limits,
+    }
+    if config.local:
+        hub = describe_hub(config.hub_root)
+    else:
+        transport = make_transport(config)
+        if not isinstance(transport, SshTransport):
+            raise RuntimeError("remote config needs an SSH host")
+        hub = json.loads(transport._ssh(["resalloc", "config", "--hub-only"]))
+    body = {"laptop": laptop, "hub": hub}
+    if args.json:
+        print(json.dumps(body, indent=2))
+        return 0
+    _print_config(body)
     return 0
+
+
+def _print_config(body: dict) -> None:
+    laptop = body["laptop"]
+    hub = body["hub"]
+    where = "this machine" if laptop.get("local") else f"ssh {laptop.get('ssh_host')}"
+    print(f"config   {laptop.get('config')}")
+    print(f"hub      {where}  {hub.get('hub_root') or laptop.get('hub_root')}")
+    limits = laptop.get("limits") or {}
+    if limits:
+        print("limits   " + "  ".join(f"{key}={value}" for key, value in limits.items()))
+    else:
+        print("limits   defaults")
+    caps = []
+    for key in ("max_running", "tick_workers", "probe_failures"):
+        value = hub.get(key)
+        caps.append(f"{key}={'off' if value is None else value}")
+    print("caps     " + "  ".join(caps))
+    providers = hub.get("providers") or {}
+    if providers:
+        print("providers  " + "  ".join(f"{name}={cap}" for name, cap in providers.items()))
+    secrets = hub.get("secrets") or []
+    print("secrets  " + (", ".join(secrets) if secrets else "none"))
+    reserve = hub.get("reserve_bytes")
+    if reserve is not None:
+        print(f"reserve  {reserve}")
+    print("notify   " + ("on" if hub.get("notify") else "off"))
 
 
 def _up(args: argparse.Namespace) -> int:

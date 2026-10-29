@@ -126,7 +126,11 @@ class SetupTest(unittest.TestCase):
             self.assertEqual(code, 0)
             self.assertTrue(config.is_file())
             self.assertTrue((hub / "secrets.env").is_file())
-            self.assertIn("reserve_bytes", (hub / "hub.toml").read_text(encoding="utf-8"))
+            hub_text = (hub / "hub.toml").read_text(encoding="utf-8")
+            self.assertIn("reserve_bytes", hub_text)
+            self.assertIn("# max_running = 4", hub_text)
+            self.assertIn("# [providers.runpod]", hub_text)
+            self.assertIn("# notify_command", hub_text)
             self.assertIn("resalloc up --ssh-host", quickstart())
             self.assertEqual(main(["help"]), 0)
 
@@ -159,6 +163,81 @@ class SetupTest(unittest.TestCase):
                     os.environ["RESALLOC_CONFIG"] = previous
             self.assertEqual(code, 1)
             self.assertFalse(remote_root.exists())
+
+    def test_an_existing_hub_toml_is_not_rewritten(self) -> None:
+        from resalloc.setup import ensure_hub_reserve
+
+        with TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            original = "max_running = 3\nreserve_bytes = 99\n"
+            (root / "hub.toml").write_text(original, encoding="utf-8")
+            self.assertEqual(ensure_hub_reserve(root), 99)
+            self.assertEqual((root / "hub.toml").read_text(encoding="utf-8"), original)
+
+    def test_config_prints_names_and_hides_secret_values(self) -> None:
+        from io import StringIO
+        from contextlib import redirect_stdout
+
+        from resalloc.cli import main
+
+        with TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            config = root / "config.toml"
+            hub = root / "hub"
+            names = [
+                "RESALLOC_CONFIG",
+                "RESALLOC_HUB_ROOT",
+                "RESALLOC_SSH_HOST",
+                "RESALLOC_RESERVE_BYTES",
+                "RESALLOC_MAX_RUNNING",
+                "RESALLOC_TICK_WORKERS",
+                "RESALLOC_PROBE_FAILURES",
+                "RESALLOC_NOTIFY_URL",
+                "RESALLOC_NOTIFY_COMMAND",
+            ]
+            names += [key for key in os.environ if key.startswith("RESALLOC_MAX_RUNNING_")]
+            saved = {key: os.environ.get(key) for key in names}
+            os.environ["RESALLOC_CONFIG"] = str(config)
+            os.environ.pop("RESALLOC_HUB_ROOT", None)
+            os.environ["RESALLOC_SSH_HOST"] = ""
+            os.environ.pop("RESALLOC_RESERVE_BYTES", None)
+            os.environ.pop("RESALLOC_MAX_RUNNING", None)
+            os.environ.pop("RESALLOC_NOTIFY_URL", None)
+            os.environ.pop("RESALLOC_NOTIFY_COMMAND", None)
+            try:
+                self.assertEqual(main(["up", "--no-start", "--hub-root", str(hub)]), 0)
+                config.write_text(
+                    config.read_text(encoding="utf-8") + "\n[limits]\nmodal_max_spend_usd = 10\n",
+                    encoding="utf-8",
+                )
+                (hub / "secrets.env").write_text(
+                    "RUNPOD_API_KEY=super-secret-value\nVAST_API_KEY=\n",
+                    encoding="utf-8",
+                )
+                (hub / "hub.toml").write_text(
+                    "max_running = 4\nreserve_bytes = 1234\nnotify_url = \"https://example.test/hook\"\n\n"
+                    "[providers.runpod]\nmax_running = 2\n",
+                    encoding="utf-8",
+                )
+                buffer = StringIO()
+                with redirect_stdout(buffer):
+                    code = main(["config"])
+            finally:
+                for key, value in saved.items():
+                    if value is None:
+                        os.environ.pop(key, None)
+                    else:
+                        os.environ[key] = value
+            self.assertEqual(code, 0)
+            text = buffer.getvalue()
+            self.assertIn("RUNPOD_API_KEY", text)
+            self.assertIn("modal_max_spend_usd=10", text)
+            self.assertIn("max_running=4", text)
+            self.assertIn("runpod=2", text)
+            self.assertIn("reserve  1234", text)
+            self.assertIn("notify   on", text)
+            self.assertNotIn("super-secret-value", text)
+            self.assertNotIn("example.test", text)
 
     def test_probe_without_ssh_is_a_failed_check(self) -> None:
         config = Config(hub_root=Path("/home/ubuntu/resalloc"), ssh_host="zrnhost")

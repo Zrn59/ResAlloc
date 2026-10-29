@@ -27,7 +27,7 @@ def parse_edits(text: str) -> dict[str, Any]:
     """`gpu=NVIDIA GeForce RTX 3090, spot=true, disk_gb=40`."""
 
     changes: dict[str, Any] = {}
-    numeric = {"disk_gb", "cpus", "gpu_count", "memory_mb", "ram_gb", "timeout_hours", "cpu"}
+    numeric = {"disk_gb", "cpus", "gpu_count", "memory_mb", "ram_gb", "timeout_hours", "cpu", "max_price"}
     flags = {"spot", "internet"}
     for part in text.split(","):
         piece = part.strip()
@@ -280,6 +280,14 @@ def render_config(hub_root: Path, ssh_host: str | None) -> str:
         lines.append('# ssh_host = "hub"  # a Host from ~/.ssh/config; omit it to run the hub here')
     lines.append("# ssh_port = 22")
     lines.append('# ssh_identity = ""')
+    lines.append("")
+    lines.append("# Spend caps for fields a job leaves at the Limits default. An explicit job value wins.")
+    lines.append("# [limits]")
+    lines.append("# modal_max_spend_usd = 10")
+    lines.append("# runpod_max_spend_usd = 5")
+    lines.append("# vast_max_spend_usd = 5")
+    lines.append("# runpod_max_hourly_usd = 1.5")
+    lines.append("# vast_max_hourly_usd = 0.4")
     return "\n".join(lines) + "\n"
 
 
@@ -342,6 +350,7 @@ def quickstart() -> str:
           resalloc doctor
 
         resalloc help      эта страница / this page
+        resalloc config    текущие настройки, без значений ключей
         resalloc --help    все команды / every command
         docs/SHORT.md      кратко по-русски
         docs/en/SHORT.md   short English
@@ -427,8 +436,50 @@ def ensure_hub_reserve(root: Path) -> int:
         if "reserve_bytes" not in text:
             path.write_text(text.rstrip() + f"\nreserve_bytes = {reserve}\n", encoding="utf-8")
         return reserve
-    path.write_text(f"reserve_bytes = {reserve}\n", encoding="utf-8")
+    path.write_text(hub_toml_text(reserve), encoding="utf-8")
     return reserve
+
+
+def hub_toml_text(reserve: int) -> str:
+    return (
+        "# Caps stay off until a line is uncommented.\n"
+        "# max_running = 4\n"
+        "# tick_workers = 4\n"
+        "# probe_failures = 5\n"
+        "#\n"
+        "# [providers.runpod]\n"
+        "# max_running = 2\n"
+        "#\n"
+        "# [providers.vast]\n"
+        "# max_running = 2\n"
+        "#\n"
+        "# POST JSON when a job starts waiting for confirm. The URL is not printed by resalloc config.\n"
+        '# notify_url = "https://ntfy.sh/your-topic"\n'
+        "# notify_command = \"notify-send resalloc\"\n"
+        f"reserve_bytes = {reserve}\n"
+    )
+
+
+def describe_hub(root: Path) -> dict[str, Any]:
+    """Hub settings safe to print. Secret values and notify targets stay out."""
+
+    from resalloc.disk import configured_reserve
+    from resalloc.hub import load_hub_limits, notify_settings
+
+    per, total, workers, probes = load_hub_limits(root)
+    secrets_path = root / "secrets.env"
+    names = secret_names(secrets_path.read_text(encoding="utf-8")) if secrets_path.is_file() else []
+    url, command = notify_settings(root)
+    return {
+        "hub_root": str(root),
+        "reserve_bytes": configured_reserve(root=root),
+        "max_running": total,
+        "tick_workers": workers,
+        "probe_failures": probes,
+        "providers": per,
+        "secrets": names,
+        "notify": bool(url or command),
+    }
 
 
 def install_local(config: Config, *, start: bool = True) -> list[str]:

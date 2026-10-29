@@ -3,10 +3,15 @@
 from __future__ import annotations
 
 import fcntl
+import json
 import logging
 import os
+import shlex
 import shutil
+import subprocess
 import threading
+import urllib.parse
+import urllib.request
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -348,6 +353,7 @@ class Hub:
         if action == Action.PARK.value:
             journal["state"] = "awaiting_confirm"
             journal["handle"] = None
+            self._notify_confirm(journal)
             self._save(journal)
             return
         journal["handle"] = None
@@ -370,6 +376,7 @@ class Hub:
             if journal["confirms"][index]:
                 journal["state"] = "awaiting_confirm"
                 journal["pending_index"] = index
+                self._notify_confirm(journal)
                 self._save(journal)
                 return
             outcome = self._try_start(journal, index, failover=True)
@@ -636,6 +643,17 @@ class Hub:
         journal["updated_at"] = dump_dt(self.now())
         write_json(self.layout.job(str(journal["id"])) / "journal.json", journal)
 
+    def _notify_confirm(self, journal: dict[str, Any]) -> None:
+        if journal.get("confirm_notified"):
+            return
+        try:
+            sent = send_confirm_notice(self.root, journal, _next_provider(journal))
+        except Exception as exc:
+            logger.warning("confirm notice failed for %s: %s", journal.get("id"), exc)
+            sent = True
+        if sent:
+            journal["confirm_notified"] = True
+
     def _history(self, journal: dict[str, Any], event: str, reason: str) -> None:
         provider = None
         if journal.get("handle"):
@@ -698,6 +716,103 @@ def _read_step(checkpoint_dir: Path) -> int | None:
     return None
 
 
+def _read_hub_toml(root: Path) -> dict[str, Any]:
+    path = root / "hub.toml"
+    if not path.is_file():
+        return {}
+    import tomllib
+
+    with path.open("rb") as handle:
+        data = tomllib.load(handle)
+    if not isinstance(data, dict):
+        raise ValueError(f"{path} must be a table")
+    return data
+
+
+def _next_provider(journal: dict[str, Any]) -> str | None:
+    index = journal.get("pending_index")
+    targets = journal.get("targets") or []
+    if not isinstance(index, int) or index < 0 or index >= len(targets):
+        return None
+    target = targets[index]
+    if isinstance(target, dict) and target.get("type"):
+        return str(target["type"])
+    return None
+
+
+def notify_settings(root: Path) -> tuple[str | None, str | None]:
+    """`notify_url` and `notify_command` from hub.toml. Environment overrides the file."""
+
+    data = _read_hub_toml(root)
+    url = os.environ.get("RESALLOC_NOTIFY_URL")
+    if url is None:
+        url = data.get("notify_url")
+    command = os.environ.get("RESALLOC_NOTIFY_COMMAND")
+    if command is None:
+        command = data.get("notify_command")
+    url_text = str(url).strip() if url else ""
+    command_text = str(command).strip() if command else ""
+    return url_text or None, command_text or None
+
+
+def send_confirm_notice(root: Path, journal: dict[str, Any], provider: str | None = None) -> bool:
+    """POST JSON and/or run a command once. Returns false when nothing is configured."""
+
+    url, command = notify_settings(root)
+    if not url and not command:
+        return False
+    payload = {
+        "job_id": journal.get("id"),
+        "state": "awaiting_confirm",
+        "reason": journal.get("reason") or "",
+        "provider": provider,
+    }
+    errors: list[BaseException] = []
+    if url:
+        try:
+            _post_notify(url, payload)
+        except Exception as exc:
+            errors.append(exc)
+    if command:
+        try:
+            _run_notify(command, payload)
+        except Exception as exc:
+            errors.append(exc)
+    if errors:
+        raise errors[0]
+    return True
+
+
+def _post_notify(url: str, payload: dict[str, Any]) -> None:
+    parsed = urllib.parse.urlparse(url)
+    if parsed.scheme not in {"http", "https"}:
+        raise ValueError("notify_url must be http or https")
+    body = json.dumps(payload).encode("utf-8")
+    request = urllib.request.Request(
+        url,
+        data=body,
+        headers={"Content-Type": "application/json"},
+        method="POST",
+    )
+    with urllib.request.urlopen(request, timeout=10) as response:
+        response.read()
+
+
+def _run_notify(command: str, payload: dict[str, Any]) -> None:
+    argv = shlex.split(command)
+    if not argv:
+        return
+    env = os.environ.copy()
+    env["RESALLOC_JOB_ID"] = str(payload.get("job_id") or "")
+    env["RESALLOC_NOTIFY_STATE"] = "awaiting_confirm"
+    env["RESALLOC_NOTIFY_REASON"] = str(payload.get("reason") or "")
+    env["RESALLOC_NOTIFY_PROVIDER"] = str(payload.get("provider") or "")
+    completed = subprocess.run(argv, check=False, timeout=20, env=env, capture_output=True, text=True)
+    if completed.returncode != 0:
+        detail = (completed.stderr or completed.stdout or "").strip()
+        raise RuntimeError(detail or f"notify command exited {completed.returncode}")
+
+
 def load_hub_limits(root: Path) -> tuple[dict[str, int], int | None, int, int]:
     """Per-provider caps, a total cap, tick workers, and the probe-failure budget.
 
@@ -710,14 +825,8 @@ def load_hub_limits(root: Path) -> tuple[dict[str, int], int | None, int, int]:
     total: int | None = None
     workers = 1
     probe_failures = 5
-    path = root / "hub.toml"
-    if path.is_file():
-        import tomllib
-
-        with path.open("rb") as handle:
-            data = tomllib.load(handle)
-        if not isinstance(data, dict):
-            raise ValueError(f"{path} must be a table")
+    data = _read_hub_toml(root)
+    if data:
         if data.get("max_running") is not None:
             total = int(data["max_running"])
         if data.get("tick_workers") is not None:
@@ -726,7 +835,7 @@ def load_hub_limits(root: Path) -> tuple[dict[str, int], int | None, int, int]:
             probe_failures = int(data["probe_failures"])
         providers = data.get("providers") or {}
         if not isinstance(providers, dict):
-            raise ValueError(f"{path} providers must be a table")
+            raise ValueError(f"{root / 'hub.toml'} providers must be a table")
         for name, value in providers.items():
             if isinstance(value, dict):
                 if value.get("max_running") is not None:

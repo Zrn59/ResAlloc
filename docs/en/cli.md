@@ -7,12 +7,13 @@ Code: `src/resalloc/cli.py`.
 | Command | Why |
 | --- | --- |
 | `resalloc` / `resalloc help` | short setup: hub on this machine, or a laptop plus a hosting hub |
+| `resalloc config` | laptop target, hub directory, disk reserve, caps, and secret names. Values of keys are not printed |
 | `resalloc up` | hub on this machine. `--ssh-host NAME` installs the hub on that `~/.ssh/config` host. `--no-start` is local only |
 | `resalloc init` | write `~/.config/resalloc/config.toml`. `--local`, `--ssh-host`, `--hub-root`. An existing file is kept unless `--force` |
 | `resalloc submit job.json` | submit a job. The JSON has the same fields as `Job` |
 | `resalloc status [JOB]` | state, provider, step, checkpoint freshness, next step |
 | `resalloc attach JOB` | wait, then answer `confirm` or `edit gpu=..., spot=true` |
-| `resalloc edit JOB --gpu ...` | change the next provider while the job is parked |
+| `resalloc edit JOB --gpu ...` | change the next provider while the job is parked. Also `--volume`, `--region`, `--cloud`, `--max-price`, `--host` |
 | `resalloc confirm JOB` | continue after a park |
 | `resalloc resume JOB` | start a stopped or failed job again from its checkpoint |
 | `resalloc doctor` | check this machine, or the hub behind `ssh_host` |
@@ -23,4 +24,4 @@ Code: `src/resalloc/cli.py`.
 | `resalloc laptop agent` | this laptop as a free provider |
 | `resalloc laptop push JOB` | send the latest checkpoint right after `save` |
 
-`edit` inside `attach` takes `key=value` separated by commas. `spot` and `internet` are booleans. `disk_gb`, `cpus`, `gpu_count`, `memory_mb`, `ram_gb`, `timeout_hours`, and `cpu` are numbers. A GPU name stays a string.
+`edit` inside `attach` takes `key=value` separated by commas. `spot` and `internet` are booleans. `disk_gb`, `cpus`, `gpu_count`, `memory_mb`, `ram_gb`, `timeout_hours`, `cpu`, and `max_price` are numbers. A GPU name stays a string, and so do `volume`, `region`, `cloud`, and `host`.
