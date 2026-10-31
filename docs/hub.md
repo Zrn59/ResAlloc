@@ -4,12 +4,19 @@
 
 Код: `src/resalloc/hub.py`, `src/resalloc/transport.py`, `src/resalloc/setup.py`, `src/resalloc/config.py`.
 
-Конфиг — `~/.config/resalloc/config.toml`. Его пишет `resalloc init`. Без `ssh_host` хаб — эта же машина, каталог по умолчанию `~/resalloc`. С `ssh_host` это имя `Host` из `~/.ssh/config`: пользователь, порт и ключ живут там, не в библиотеке.
+Конфиг — `~/.config/resalloc/config.toml`. Его пишет `resalloc up` или `resalloc init`. Без `ssh_host` хаб — эта же машина, каталог по умолчанию `~/resalloc`. С `ssh_host` это имя `Host` из `~/.ssh/config`: пользователь, порт и ключ живут там, не в библиотеке.
 
 ```toml
 ssh_host = "my-server"
 hub_root = "/home/me/resalloc"
+
+[limits]
+modal_max_spend_usd = 10
+runpod_max_spend_usd = 5
+vast_max_spend_usd = 5
 ```
+
+Имена в `[limits]` те же, что у `Limits.to_dict()`: буферы задаются секундами (`soft_buffer_seconds`, `hard_buffer_seconds`). Поле, которое в `Job` осталось на значении по умолчанию, берётся отсюда. Значение, заданное в задаче, остаётся. `resalloc up` пишет файл, если его ещё нет. `resalloc config` показывает эту сторону и сторону хаба и не печатает значения секретов.
 
 На самой машине хаба `ssh_host` пустой: демон смотрит только свой диск.
 
@@ -41,7 +48,7 @@ notify_command = "notify-send resalloc"
 
 Идентификатор задачи — только буквы, цифры, точка, `_` и `-`. Хеш датасета — sha256. Чужие пути в `script` и в имени датасета хаб не принимает.
 
-`data_endpoint` в журнале — куда ноутбуку лить датасет мимо диска VM (SSH пода или имя тома). Его пишет адаптер в `RunningJob.connection`.
+`data_endpoint` в журнале — куда ноутбуку лить датасет мимо диска хаба (SSH пода или имя тома). Его пишет адаптер в `RunningJob.connection`.
 
 Как включить:
 

@@ -24,4 +24,6 @@
 | `resalloc laptop agent` | ноутбук как бесплатный провайдер |
 | `resalloc laptop push JOB` | дослать чекпоинт с ноутбука сразу после `save` |
 
-`edit` в `attach` понимает `key=value` через запятую. `spot` и `internet` — булевы. `disk_gb`, `cpus`, `gpu_count`, `memory_mb`, `ram_gb`, `timeout_hours`, `cpu`, `max_price` — числа. Имя GPU остаётся строкой. `volume`, `region`, `cloud` и `host` тоже строки.
+`JOB` — имя каталога, которое печатает `resalloc submit`, например `train-2026-10-31-18-11-a3f9`. `resalloc config --json` печатает те же настройки одним объектом для скрипта. Значений ключей там нет.
+
+`edit` в `attach` понимает `key=value` через запятую. `spot` и `internet` — булевы. `disk_gb`, `cpus`, `gpu_count`, `memory_mb`, `ram_gb`, `timeout_hours`, `cpu`, `max_price` — числа. Имя GPU остаётся строкой. `volume`, `region`, `cloud` и `host` тоже строки. `--json` у `edit` — это объект с полями, а не переключатель. Флаги дополняют его.

@@ -4,12 +4,19 @@
 
 Code: `src/resalloc/hub.py`, `src/resalloc/transport.py`, `src/resalloc/setup.py`, `src/resalloc/config.py`.
 
-The config is `~/.config/resalloc/config.toml`. `resalloc init` writes it. With no `ssh_host`, this machine is the hub and the directory defaults to `~/resalloc`. With `ssh_host`, that name is a `Host` from `~/.ssh/config`: the user, port, and key live there, not in the library.
+The config is `~/.config/resalloc/config.toml`. `resalloc up` or `resalloc init` writes it. With no `ssh_host`, this machine is the hub and the directory defaults to `~/resalloc`. With `ssh_host`, that name is a `Host` from `~/.ssh/config`: the user, port, and key live there, not in the library.
 
 ```toml
 ssh_host = "my-server"
 hub_root = "/home/me/resalloc"
+
+[limits]
+modal_max_spend_usd = 10
+runpod_max_spend_usd = 5
+vast_max_spend_usd = 5
 ```
+
+Names under `[limits]` are the ones `Limits.to_dict()` uses. Buffers are seconds (`soft_buffer_seconds`, `hard_buffer_seconds`). A `Job` field still at its dataclass default takes the saved value. A value set on the job stays. `resalloc up` writes the file when it does not exist yet. `resalloc config` shows this side and the hub side, and does not print secret values.
 
 On the hub machine itself `ssh_host` is empty: the daemon only looks at its own disk.
 

@@ -2,7 +2,9 @@
 
 [English](en/README.md) · **Русский**
 
-Коротко: [SHORT.md](SHORT.md). Главные страницы: [README.ru.md](../README.ru.md), [README.md](../README.md).
+Коротко: [SHORT.md](SHORT.md). Главные страницы: [README.ru.md](../README.ru.md), [README.md](../README.md). Изменения по версиям: [CHANGELOG.md](../CHANGELOG.md).
+
+С чего начать: `pip install git+https://github.com/Zrn59/ResAlloc.git`, затем `resalloc help`. Хаб на этой машине — `resalloc up`. Этот ноутбук только сдаёт задачи, а хаб на хостинге — `resalloc up --ssh-host ИМЯ`, где `ИМЯ` уже есть в `~/.ssh/config`. Дальше ключи в `secrets.env` на хабе и `resalloc doctor`. Текущие настройки без значений ключей: `resalloc config`.
 
 | Вопрос | Файл |
 | --- | --- |

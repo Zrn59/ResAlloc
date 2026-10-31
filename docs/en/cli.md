@@ -24,4 +24,6 @@ Code: `src/resalloc/cli.py`.
 | `resalloc laptop agent` | this laptop as a free provider |
 | `resalloc laptop push JOB` | send the latest checkpoint right after `save` |
 
-`edit` inside `attach` takes `key=value` separated by commas. `spot` and `internet` are booleans. `disk_gb`, `cpus`, `gpu_count`, `memory_mb`, `ram_gb`, `timeout_hours`, `cpu`, and `max_price` are numbers. A GPU name stays a string, and so do `volume`, `region`, `cloud`, and `host`.
+`JOB` is the folder name `resalloc submit` prints, for example `train-2026-10-31-18-11-a3f9`. `resalloc config --json` prints the same settings as one object for a script. Secret values are not in it.
+
+`edit` inside `attach` takes `key=value` separated by commas. `spot` and `internet` are booleans. `disk_gb`, `cpus`, `gpu_count`, `memory_mb`, `ram_gb`, `timeout_hours`, `cpu`, and `max_price` are numbers. A GPU name stays a string, and so do `volume`, `region`, `cloud`, and `host`. `--json` on `edit` is an object of fields, not a switch. The flags add to it.

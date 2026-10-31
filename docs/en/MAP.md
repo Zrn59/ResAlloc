@@ -37,4 +37,4 @@ tests/                 no keys and no live VM
 
 Control always goes the same way: the laptop drops a small request on the hub, the hub calls the APIs and keeps the journal. Dataset bytes are a separate choice and can skip the hub. After a stop, the checkpoint is still pulled back to the hub.
 
-Hub disk: `inbox/`, `jobs/<id>/` (`bundle`, `runtime`, `checkpoints`, `logs`, `journal.json`), `cache/datasets/<hash>/`, `agents/laptop.json`.
+Hub disk: `inbox/`, `jobs/train-2026-10-31-18-11-a3f9/` (`bundle`, `runtime`, `checkpoints`, `logs`, `journal.json`), `cache/datasets/<hash>/`, `agents/laptop.json`. `checkpoints` is the intermediate state, `logs` is the output.

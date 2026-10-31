@@ -2,7 +2,9 @@
 
 **English** · [Русский](../README.md)
 
-Short version: [SHORT.md](SHORT.md). Front pages: [README.md](../../README.md), [README.ru.md](../../README.ru.md).
+Short version: [SHORT.md](SHORT.md). Front pages: [README.md](../../README.md), [README.ru.md](../../README.ru.md). Version history: [CHANGELOG.md](../../CHANGELOG.md).
+
+Start with `pip install git+https://github.com/Zrn59/ResAlloc.git`, then `resalloc help`. This machine as the hub is `resalloc up`. This laptop only submits jobs and the hub is another host: `resalloc up --ssh-host NAME`, where `NAME` is already a `Host` in `~/.ssh/config`. Then put keys in `secrets.env` on the hub and run `resalloc doctor`. Current settings, without secret values: `resalloc config`.
 
 | Question | File |
 | --- | --- |

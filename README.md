@@ -35,9 +35,11 @@ Anything else is a provider object plus `register_provider`. Set `RESALLOC_PROVI
 Python 3.11 or newer, on Linux or macOS. A hub on another machine also needs OpenSSH and rsync. Nothing here assumes a particular host, user, or cloud account.
 
 ```bash
-pip install resalloc
+pip install git+https://github.com/Zrn59/ResAlloc.git
 resalloc help
 ```
+
+That installs the current `main`. The release tag is `git+https://github.com/Zrn59/ResAlloc.git@v0.2.4`. Changes are in [CHANGELOG.md](CHANGELOG.md).
 
 Two setups:
 
@@ -100,7 +102,7 @@ resalloc confirm JOB
 resalloc resume JOB
 ```
 
-`resalloc attach JOB` asks in the terminal. `resalloc submit job.json` takes the same fields as `Job`.
+`resalloc attach JOB` asks in the terminal. `resalloc submit job.json` takes the same fields as `Job`. `JOB` in every command is that folder name. When the job starts waiting for confirm, the hub can POST once to `notify_url` or run `notify_command` from `hub.toml`. Details are in [docs/en/hub.md](docs/en/hub.md).
 
 The same `train.py` runs everywhere:
 
@@ -152,7 +154,7 @@ max_running = 2
 
 `max_running` at the top is the total number of running jobs. A provider table entry is that provider's own cap. A job that does not fit stays `queued` with reason `at_capacity` and is tried again on the next tick. After `probe_failures` failed probes the hub treats the workload as gone, so a stuck API cannot leave a GPU billing.
 
-The hub disk is shared with the OS. The reserve defaults to 20 GiB (`RESALLOC_RESERVE_BYTES`). Dataset cache is evicted by age, except hashes that a live job still uses. A new upload is refused at the watermark. A running job can still write its checkpoint. A refused job keeps its bundle, so `resalloc resume` can try again after you free space.
+The hub disk is shared with the OS. A new hub writes `reserve_bytes` once: 20 GiB when at least 80 GiB is free, 1 GiB when at least 8 GiB is free, otherwise a tenth of the free space and at least 64 MiB. `RESALLOC_RESERVE_BYTES` overrides that number. An existing `hub.toml` is left as it is. Dataset cache is evicted by age, except hashes that a live job still uses. A new upload is refused at the watermark. A running job can still write its checkpoint. A refused job keeps its bundle, so `resalloc resume` can try again after you free space.
 
 ## Data
 

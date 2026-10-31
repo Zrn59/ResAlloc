@@ -332,7 +332,8 @@ def quickstart() -> str:
     return textwrap.dedent(
         """\
         На этой машине хаб:
-          pip install resalloc && resalloc up
+          pip install git+https://github.com/Zrn59/ResAlloc.git
+          resalloc up
 
         Ноутбук сдаёт задачи, хостинг — узел. Имя Host уже лежит в ~/.ssh/config:
           resalloc up --ssh-host ИМЯ
@@ -341,7 +342,8 @@ def quickstart() -> str:
           resalloc doctor
 
         This machine is the hub:
-          pip install resalloc && resalloc up
+          pip install git+https://github.com/Zrn59/ResAlloc.git
+          resalloc up
 
         The laptop submits jobs, another host is the hub:
           resalloc up --ssh-host NAME

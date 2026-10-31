@@ -22,6 +22,8 @@ ResAlloc.submit(Job(
 ))
 ```
 
-`Limits` asks the script to save early and cuts the run when money or hours run low. Caps shared by every job live in `[limits]` in `config.toml`. `resalloc config` shows the current settings and the names of secrets. `confirm=True` does not keep a paid GPU while the laptop is closed. `resalloc attach JOB` confirms the next step from the terminal. `Vast(gpu="RTX 4090")` rents a cheap offer on its own. `Machine(host="lab.example")` trains on a host the hub can already SSH to, and does not power that host off when the job stops.
+`Limits` asks the script to save early and cuts the run when money or hours run low. Caps shared by every job live in `[limits]` in `config.toml`. `resalloc config` shows the current settings and the names of secrets. `confirm=True` does not keep a paid GPU while the laptop is closed. When a job starts waiting for confirm, the hub sends `notify_url` or runs `notify_command` from `hub.toml` once. `resalloc attach JOB` confirms the next step from the terminal. `Vast(gpu="RTX 4090")` rents a cheap offer on its own. `Machine(host="lab.example")` trains on a host the hub can already SSH to, and does not power that host off when the job stops.
+
+The job folder is the script name plus the local time: `jobs/train-2026-10-31-18-11-a3f9`. Inside it, `checkpoints` is the intermediate state and `logs` is the output. `name="city"` picks the name.
 
 API keys live on the hub in `<hub_root>/secrets.env`. A direct upload to Modal or Kaggle uses the laptop's keys, because those bytes never touch the hub.

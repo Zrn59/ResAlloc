@@ -13,10 +13,11 @@ src/resalloc/
   policy.py            CONTINUE / MIGRATE / PARK / STOP
   hub.py               демон: очередь, пороги, перенос, чекпоинт
   layout.py            каталоги на диске хаба
+  names.py             безопасные id задач, имена датасетов и хеши
   records.py           journal.json и команды confirm/edit/resume/data_ready
   transport.py         локальный диск или SSH+rsync
   config.py            ~/.config/resalloc/config.toml
-  setup.py             doctor, bootstrap, attach
+  setup.py             doctor, init, install, bootstrap, attach
   laptop_agent.py      ноутбук сам стучится на хаб
   cli.py               команда resalloc
   providers/
@@ -36,4 +37,4 @@ tests/                 без ключей и без живой VM
 
 Поток управления всегда такой: ноутбук кладёт маленькую заявку на хаб, хаб вызывает API и хранит журнал. Поток байт датасета выбирается отдельно и может миновать хаб. Чекпоинт после остановки всё равно снимается на хаб.
 
-Диск хаба: `inbox/`, `jobs/<id>/` (`bundle`, `runtime`, `checkpoints`, `logs`, `journal.json`), `cache/datasets/<hash>/`, `agents/laptop.json`.
+Диск хаба: `inbox/`, `jobs/train-2026-10-31-18-11-a3f9/` (`bundle`, `runtime`, `checkpoints`, `logs`, `journal.json`), `cache/datasets/<hash>/`, `agents/laptop.json`. `checkpoints` — промежуточное, `logs` — вывод.
