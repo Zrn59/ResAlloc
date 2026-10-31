@@ -189,6 +189,42 @@ class ClientTest(unittest.TestCase):
             self.assertEqual(payload["max_price"], 0.4)
             self.assertEqual(payload["host"], "lab.example")
 
+    def test_submit_names_the_folder_after_the_script(self) -> None:
+        from datetime import datetime
+
+        from resalloc.client import new_job_id
+        from resalloc.names import job_folder_name, safe_job_id
+        from resalloc.providers.kaggle import slugify
+
+        moment = datetime.fromisoformat("2026-10-31T18:11:00+05:00")
+        named = job_folder_name("Train.py", now=moment, suffix="a3f9")
+        self.assertEqual(named, "train-2026-10-31-18-11-a3f9")
+        self.assertTrue(safe_job_id(named))
+        long = job_folder_name("a" * 80, now=moment, suffix="abcd")
+        self.assertTrue(long.endswith("-2026-10-31-18-11-abcd"))
+        self.assertLessEqual(len(long), 36)
+        self.assertTrue(slugify(f"resalloc-code-{long}").endswith("abcd"))
+        self.assertEqual(job_folder_name("город.py", now=moment, suffix="a3f9"), "job-2026-10-31-18-11-a3f9")
+        seen: list[str] = []
+
+        def taken(job_id: str) -> bool:
+            seen.append(job_id)
+            return len(seen) < 2
+
+        chosen = new_job_id("train", taken)
+        self.assertEqual(chosen, seen[1])
+        self.assertNotEqual(seen[0], chosen)
+
+        with TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            script = root / "train.py"
+            script.write_text("print(1)\n", encoding="utf-8")
+            job_id = ResAlloc(hub_root=root, reserve_bytes=1024 * 1024).submit(
+                Job(script=str(script), start=RunPod(gpu="NVIDIA GeForce RTX 4090"), name="City Model")
+            )
+            self.assertRegex(job_id, r"^city-model-\d{4}-\d{2}-\d{2}-\d{2}-\d{2}-[0-9a-f]{4}$")
+            self.assertTrue((root / "inbox" / job_id).is_dir())
+
 
 if __name__ == "__main__":
     unittest.main()

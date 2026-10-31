@@ -156,6 +156,7 @@ def _dispatch(args: argparse.Namespace) -> int:
             args=list(raw.get("args") or []),
             bundle_paths=[str(path) for path in raw.get("bundle_paths") or []],
             data_timeout_seconds=float(raw.get("data_timeout_seconds") or 3600),
+            name=raw.get("name"),
         )
         print(ResAlloc.submit(job))
         return 0

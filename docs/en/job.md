@@ -6,6 +6,8 @@ Code: `src/resalloc/models.py`, `src/resalloc/worker.py`, `src/resalloc/policy.p
 
 `Job` is the script, the start provider, `failover`, and the datasets. A string in `datasets` means `route="hub"`. A `Dataset` object picks the road.
 
+The job directory is readable: `jobs/train-2026-10-31-18-11-a3f9`. The name comes from the script file, the clock is local time at submit, and the last four characters separate two submits in the same minute. Set `Job(..., name="city")`, or `name` in the JSON, to choose it. The same name is used for the Runpod pod, the Modal volume, the Kaggle kernel, and the directory on an SSH machine. Inside it, `checkpoints` is the intermediate state and `logs` is the output.
+
 `Limits` decides when to ask for a save (`soft_buffer`) and when to cut the run even if the script does not answer (`hard_buffer`).
 
 | Field | Meaning |

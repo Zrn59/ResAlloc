@@ -90,6 +90,8 @@ job = Job(
 ResAlloc.submit(job)
 ```
 
+The hub folder is named from the script and the local time, `jobs/train-2026-10-31-18-11-a3f9`. `name="city"` on the `Job` replaces `train`. `checkpoints` inside it is the intermediate state, `logs` is the output.
+
 `confirm=True` does not leave a paid GPU running while the laptop is closed. The hub takes a checkpoint, releases the machine, and waits:
 
 ```bash

@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import shutil
 import tempfile
-import uuid
 from pathlib import Path
 from typing import Any
 
@@ -13,14 +12,20 @@ from resalloc.data import describe
 from resalloc.disk import dir_size
 from resalloc.errors import DiskWatermarkError, LaptopOfflineError
 from resalloc.hashing import hash_tree
-from resalloc.io import utcnow, write_json
+from resalloc.io import write_json
 from resalloc.models import Dataset, Job, merge_limits
+from resalloc.names import job_folder_name
 from resalloc.transport import make_transport
 
 
-def new_job_id() -> str:
-    stamp = utcnow().strftime("%Y%m%dT%H%M%SZ")
-    return f"job-{stamp}-{uuid.uuid4().hex[:6]}"
+def new_job_id(label: str, taken: Any = None) -> str:
+    """A directory name a person can read. Retries when that folder already exists."""
+
+    for _ in range(8):
+        job_id = job_folder_name(label)
+        if taken is None or not taken(job_id):
+            return job_id
+    return job_folder_name(label)
 
 
 class _Call:
@@ -50,6 +55,12 @@ class ResAlloc:
     ) -> None:
         self.config = resolve(hub_root, ssh_host, prefer_local=hub_root is not None and ssh_host is None)
         self.transport = make_transport(self.config, reserve_bytes)
+
+    def _job_taken(self, job_id: str) -> bool:
+        if not self.config.local:
+            return False
+        root = self.config.hub_root
+        return (root / "jobs" / job_id).exists() or (root / "inbox" / job_id).exists()
 
     def _submit(self, job: Job) -> str:
         saved = load_file().get("limits")
@@ -94,7 +105,8 @@ class ResAlloc:
             if path is not None and size:
                 self.transport.upload_cache(path, digest, str(name))
             shipped.append({key: value for key, value in described.items() if key != "path"})
-        job_id = new_job_id()
+        label = (job.name or "").strip() or script.stem
+        job_id = new_job_id(label, self._job_taken)
         pre = []
         post = []
         for dataset, path in external:
@@ -129,6 +141,7 @@ class ResAlloc:
                 bundle_root / "job.json",
                 {
                     "id": job_id,
+                    "name": label,
                     "script": script.name,
                     "requirements": None if requirements is None else requirements.name,
                     "args": list(job.args),

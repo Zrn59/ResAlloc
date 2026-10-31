@@ -393,6 +393,7 @@ class Job:
     args: list[str] = field(default_factory=list)
     bundle_paths: list[str] = field(default_factory=list)
     data_timeout_seconds: float = 3600
+    name: str | None = None
 
     def __post_init__(self) -> None:
         self.datasets = [coerce_dataset(item) for item in self.datasets]
